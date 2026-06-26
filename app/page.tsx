@@ -330,7 +330,7 @@ export default function Home() {
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
               placeholder="Names, jargon, places, vocabulary..."
-              rows={4}
+              rows={2}
               disabled={isLoading}
             />
           </label>
@@ -374,7 +374,7 @@ export default function Home() {
             value={transcript}
             onChange={(event) => setTranscript(event.target.value)}
             placeholder="Your transcript will appear here."
-            rows={12}
+            rows={8}
           />
         </label>
 

@@ -16,14 +16,15 @@
 }
 
 html {
-  min-height: 100%;
+  height: 100%;
 }
 
 body {
-  min-height: 100%;
+  height: 100%;
   margin: 0;
   background: var(--background);
   color: var(--text);
+  overflow: hidden;
   font-family:
     Arial,
     Helvetica,
@@ -37,16 +38,22 @@ textarea {
 }
 
 .page {
-  min-height: 100vh;
-  padding: 24px 14px;
+  height: 100dvh;
+  padding: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .card {
   width: min(100%, 720px);
-  padding: 24px;
+  height: min(100%, 940px);
+  max-height: calc(100dvh - 20px);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -54,48 +61,51 @@ textarea {
 }
 
 .header {
-  margin-bottom: 22px;
+  margin-bottom: 12px;
+  flex: 0 0 auto;
 }
 
 .title-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
+  gap: 10px;
+  margin-bottom: 4px;
 }
 
 .title-row img {
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
   flex: 0 0 auto;
   border-radius: 8px;
 }
 
 .header h1 {
   margin: 0;
-  font-size: clamp(1.7rem, 5vw, 2.25rem);
+  font-size: clamp(1.45rem, 4vw, 2rem);
   line-height: 1.1;
 }
 
 .header p {
   margin: 0;
   color: var(--muted);
-  line-height: 1.5;
+  font-size: 0.92rem;
+  line-height: 1.35;
 }
 
 .form {
   display: grid;
-  gap: 16px;
+  gap: 10px;
+  flex: 0 0 auto;
 }
 
 .field {
   display: grid;
-  gap: 8px;
+  gap: 5px;
   font-weight: 700;
 }
 
 .field span {
-  font-size: 0.95rem;
+  font-size: 0.88rem;
 }
 
 .field input,
@@ -104,10 +114,10 @@ textarea {
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 12px;
+  padding: 8px 10px;
   color: var(--text);
   background: #fbfcfe;
-  line-height: 1.45;
+  line-height: 1.35;
 }
 
 .field input:focus,
@@ -117,7 +127,7 @@ textarea {
 }
 
 .field textarea {
-  resize: vertical;
+  resize: none;
 }
 
 .checkbox {
@@ -125,6 +135,7 @@ textarea {
   align-items: center;
   gap: 10px;
   color: var(--text);
+  font-size: 0.92rem;
   font-weight: 700;
 }
 
@@ -136,10 +147,10 @@ textarea {
 
 .primary,
 .actions button {
-  min-height: 46px;
+  min-height: 40px;
   border: 0;
   border-radius: 8px;
-  padding: 12px 16px;
+  padding: 9px 12px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -155,9 +166,10 @@ textarea {
 
 .actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+  flex: 0 0 auto;
 }
 
 .actions button {
@@ -178,20 +190,23 @@ textarea:disabled {
 }
 
 .status {
-  min-height: 24px;
-  margin: 18px 0;
+  min-height: 20px;
+  margin: 8px 0;
   color: var(--muted);
-  line-height: 1.45;
+  font-size: 0.92rem;
+  line-height: 1.35;
+  flex: 0 0 auto;
 }
 
 .usage {
   display: grid;
-  gap: 4px;
-  margin: 0 0 18px;
-  padding: 12px;
+  gap: 2px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
   background: #f2f6fb;
   border: 1px solid var(--border);
   border-radius: 8px;
+  flex: 0 0 auto;
 }
 
 .usage span {
@@ -201,46 +216,116 @@ textarea:disabled {
 }
 
 .usage strong {
-  font-size: 0.98rem;
-  line-height: 1.4;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.transcript {
+  flex: 1 1 auto;
+  min-height: 110px;
 }
 
 .transcript textarea {
-  min-height: 260px;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
 }
 
 .raw-transcript {
-  margin-top: 16px;
+  margin-top: 8px;
   color: var(--text);
+  flex: 0 0 auto;
 }
 
 .raw-transcript summary {
   cursor: pointer;
+  font-size: 0.9rem;
   font-weight: 700;
 }
 
 .raw-transcript textarea {
   width: 100%;
-  margin-top: 10px;
+  max-height: 100px;
+  margin-top: 6px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 12px;
+  padding: 8px 10px;
   background: #fbfcfe;
   color: var(--muted);
-  resize: vertical;
+  overflow: auto;
+  resize: none;
+}
+
+@media (min-width: 680px) {
+  .form {
+    grid-template-columns: minmax(0, 1fr) 120px;
+  }
+
+  .field:first-child,
+  .field:nth-child(2),
+  .field:nth-child(4),
+  .checkbox,
+  .primary {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 520px) {
   .page {
     align-items: stretch;
-    padding: 10px;
+    padding: 8px;
   }
 
   .card {
-    padding: 18px;
+    max-height: calc(100dvh - 16px);
+    padding: 12px;
   }
 
   .actions {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-height: 760px) {
+  .header p {
+    display: none;
+  }
+
+  .title-row img {
+    width: 32px;
+    height: 32px;
+  }
+
+  .form {
+    gap: 7px;
+  }
+
+  .field span,
+  .checkbox,
+  .status {
+    font-size: 0.84rem;
+  }
+
+  .field input,
+  .field textarea {
+    padding: 6px 8px;
+  }
+
+  .primary,
+  .actions button {
+    min-height: 34px;
+    padding: 7px 8px;
+  }
+
+  .transcript {
+    min-height: 56px;
+  }
+
+  .usage {
+    padding: 6px 8px;
+  }
+
+  .usage strong {
+    font-size: 0.82rem;
   }
 }
