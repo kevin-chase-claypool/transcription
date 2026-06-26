@@ -57,8 +57,22 @@ textarea {
   margin-bottom: 22px;
 }
 
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.title-row img {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+}
+
 .header h1 {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: clamp(1.7rem, 5vw, 2.25rem);
   line-height: 1.1;
 }

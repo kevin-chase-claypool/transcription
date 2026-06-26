@@ -279,7 +279,10 @@ export default function Home() {
     <main className="page">
       <section className="card" aria-labelledby="page-title">
         <div className="header">
-          <h1 id="page-title">Audio Transcriber</h1>
+          <div className="title-row">
+            <img src="/icon.svg" alt="" aria-hidden="true" />
+            <h1 id="page-title">Audio Transcriber</h1>
+          </div>
           <p>
             Upload an audio or video file, add optional hints, and edit the
             transcript when it returns.
