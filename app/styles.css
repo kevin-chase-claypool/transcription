@@ -106,6 +106,20 @@ textarea {
   resize: vertical;
 }
 
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.checkbox input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--primary);
+}
+
 .primary,
 .actions button {
   min-height: 46px;
@@ -179,6 +193,27 @@ textarea:disabled {
 
 .transcript textarea {
   min-height: 260px;
+}
+
+.raw-transcript {
+  margin-top: 16px;
+  color: var(--text);
+}
+
+.raw-transcript summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.raw-transcript textarea {
+  width: 100%;
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfe;
+  color: var(--muted);
+  resize: vertical;
 }
 
 @media (max-width: 520px) {

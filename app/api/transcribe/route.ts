@@ -3,6 +3,7 @@ import OpenAI from "openai";
 export const runtime = "nodejs";
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
+const DEFAULT_MATH_FORMAT_MODEL = "gpt-4.1-mini";
 const SUPPORTED_EXTENSIONS = new Set([
   "mp3",
   "wav",
@@ -21,12 +22,53 @@ function getExtension(filename: string) {
   return filename.split(".").pop()?.toLowerCase() || "";
 }
 
+async function formatMathTranscript(
+  client: OpenAI,
+  transcript: string,
+  hints?: string
+) {
+  const response = await client.responses.create({
+    model: process.env.OPENAI_FORMAT_MODEL || DEFAULT_MATH_FORMAT_MODEL,
+    instructions:
+      "You convert raw math lecture transcripts into clean Markdown notes. " +
+      "Preserve the speaker's meaning and order. Convert spoken equations, " +
+      "variables, functions, matrices, fractions, exponents, integrals, sums, " +
+      "limits, derivatives, and Greek letters into LaTeX when the math is clear. " +
+      "Use inline math with \\(...\\) and display math with \\[...\\]. " +
+      "Do not invent equations or silently fix uncertain content. If wording is " +
+      "ambiguous, keep the original words or mark the math as unclear.",
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: [
+              hints ? `Class hints and vocabulary:\n${hints}` : "",
+              "Raw transcript:",
+              transcript
+            ]
+              .filter(Boolean)
+              .join("\n\n")
+          }
+        ]
+      }
+    ]
+  });
+
+  return {
+    text: response.output_text || transcript,
+    usage: response.usage
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const upload = formData.get("file");
     const languageValue = formData.get("language");
     const promptValue = formData.get("prompt");
+    const formatMathValue = formData.get("formatMath");
 
     if (!(upload instanceof File)) {
       return jsonError("Missing file upload.", 400);
@@ -60,6 +102,7 @@ export async function POST(request: Request) {
       typeof promptValue === "string" && promptValue.trim()
         ? promptValue.trim()
         : undefined;
+    const formatMath = formatMathValue === "true";
 
     const client = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY
@@ -72,9 +115,15 @@ export async function POST(request: Request) {
       prompt
     });
 
+    const formatted = formatMath
+      ? await formatMathTranscript(client, transcription.text, prompt)
+      : null;
+
     return Response.json({
-      text: transcription.text,
-      usage: transcription.usage
+      text: formatted?.text || transcription.text,
+      rawText: formatMath ? transcription.text : undefined,
+      usage: transcription.usage,
+      formattingUsage: formatted?.usage || null
     });
   } catch (error) {
     const message =

@@ -9,6 +9,7 @@ The app uses the official `openai` npm package and the `gpt-4o-transcribe` model
 - Mobile-friendly upload form for MP3, WAV, M4A, MP4, MPEG, WEBM, and OGG files.
 - Optional language field, defaulting to `en`.
 - Optional prompt/hints field for names, jargon, places, or vocabulary.
+- Optional math formatting pass that converts clear spoken equations into LaTeX-flavored Markdown.
 - Editable transcript textarea.
 - Copy transcript button.
 - Download transcript as `transcript.txt`.
@@ -33,6 +34,7 @@ Add your OpenAI API key to `.env.local`:
 
 ```bash
 OPENAI_API_KEY=sk-your_key_here
+OPENAI_FORMAT_MODEL=gpt-4.1-mini
 ```
 
 Start the development server:
@@ -49,10 +51,13 @@ Open the local URL printed by Next.js, usually `http://localhost:3000`.
 2. Push this project to that repository.
 3. In Vercel, import the GitHub repository as a new project.
 4. Add `OPENAI_API_KEY` as a Vercel environment variable.
-5. Deploy the project.
+5. Optionally add `OPENAI_FORMAT_MODEL` if you want to override the default `gpt-4.1-mini` math-formatting model.
+6. Deploy the project.
 
 Do not commit `.env`, `.env.local`, or any real API key to GitHub.
 
 ## Notes
 
 OpenAI file uploads for this transcription route are limited to 25 MB, so this app rejects larger files before calling the API. Low-bitrate MP3s such as 48 kbps can work, but transcription accuracy may be lower if the audio is noisy, distorted, or hard to hear.
+
+The "Format math as LaTeX" option makes a second OpenAI API call after transcription. That second call can improve math lecture notes, but it adds token usage and cost. The app shows formatting token usage separately when OpenAI returns it.

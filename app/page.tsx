@@ -4,7 +4,9 @@ import { FormEvent, useRef, useState } from "react";
 
 type TranscribeResponse = {
   text?: string;
+  rawText?: string;
   usage?: TranscriptionUsage;
+  formattingUsage?: FormattingUsage | null;
   error?: string;
 };
 
@@ -23,6 +25,12 @@ type TranscriptionUsage =
         text_tokens?: number;
       };
     };
+
+type FormattingUsage = {
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+};
 
 const ACCEPTED_FORMATS = ".mp3,.wav,.m4a,.mp4,.mpeg,.webm,.ogg,audio/*,video/*";
 
@@ -56,12 +64,28 @@ function formatUsage(usage: TranscriptionUsage | null) {
     .join(" • ");
 }
 
+function formatTokenUsage(usage: FormattingUsage | null) {
+  if (!usage) {
+    return "";
+  }
+
+  return [
+    `${usage.total_tokens.toLocaleString()} total tokens`,
+    `${usage.input_tokens.toLocaleString()} input`,
+    `${usage.output_tokens.toLocaleString()} output`
+  ].join(" • ");
+}
+
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [language, setLanguage] = useState("en");
   const [prompt, setPrompt] = useState("");
+  const [formatMath, setFormatMath] = useState(false);
   const [transcript, setTranscript] = useState("");
+  const [rawTranscript, setRawTranscript] = useState("");
   const [usage, setUsage] = useState<TranscriptionUsage | null>(null);
+  const [formattingUsage, setFormattingUsage] =
+    useState<FormattingUsage | null>(null);
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -76,13 +100,20 @@ export default function Home() {
 
     setIsLoading(true);
     setUsage(null);
-    setStatus("Uploading and transcribing...");
+    setFormattingUsage(null);
+    setRawTranscript("");
+    setStatus(
+      formatMath
+        ? "Uploading, transcribing, and formatting math..."
+        : "Uploading and transcribing..."
+    );
 
     try {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("language", language.trim() || "en");
       formData.append("prompt", prompt.trim());
+      formData.append("formatMath", String(formatMath));
 
       const response = await fetch("/api/transcribe", {
         method: "POST",
@@ -96,8 +127,14 @@ export default function Home() {
       }
 
       setTranscript(data.text || "");
+      setRawTranscript(data.rawText || "");
       setUsage(data.usage || null);
-      setStatus("Transcription complete.");
+      setFormattingUsage(data.formattingUsage || null);
+      setStatus(
+        formatMath
+          ? "Transcription complete with math formatting."
+          : "Transcription complete."
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Something went wrong.";
@@ -180,6 +217,16 @@ export default function Home() {
             />
           </label>
 
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={formatMath}
+              onChange={(event) => setFormatMath(event.target.checked)}
+              disabled={isLoading}
+            />
+            <span>Format math as LaTeX</span>
+          </label>
+
           <button className="primary" type="submit" disabled={isLoading}>
             {isLoading ? "Transcribing..." : "Transcribe"}
           </button>
@@ -191,13 +238,20 @@ export default function Home() {
 
         {usage ? (
           <div className="usage" aria-label="API usage">
-            <span>API usage</span>
+            <span>Transcription usage</span>
             <strong>{formatUsage(usage)}</strong>
           </div>
         ) : null}
 
+        {formattingUsage ? (
+          <div className="usage" aria-label="Formatting usage">
+            <span>Math formatting usage</span>
+            <strong>{formatTokenUsage(formattingUsage)}</strong>
+          </div>
+        ) : null}
+
         <label className="field transcript">
-          <span>Transcript</span>
+          <span>{formatMath ? "Formatted transcript" : "Transcript"}</span>
           <textarea
             value={transcript}
             onChange={(event) => setTranscript(event.target.value)}
@@ -205,6 +259,13 @@ export default function Home() {
             rows={12}
           />
         </label>
+
+        {rawTranscript ? (
+          <details className="raw-transcript">
+            <summary>Original transcript</summary>
+            <textarea value={rawTranscript} readOnly rows={8} />
+          </details>
+        ) : null}
 
         <div className="actions">
           <button type="button" onClick={copyTranscript} disabled={!transcript}>
