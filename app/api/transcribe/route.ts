@@ -69,6 +69,7 @@ export async function POST(request: Request) {
     const languageValue = formData.get("language");
     const promptValue = formData.get("prompt");
     const formatMathValue = formData.get("formatMath");
+    const passwordValue = formData.get("password");
 
     if (!(upload instanceof File)) {
       return jsonError("Missing file upload.", 400);
@@ -92,6 +93,14 @@ export async function POST(request: Request) {
 
     if (!process.env.OPENAI_API_KEY) {
       return jsonError("Server is missing OPENAI_API_KEY.", 500);
+    }
+
+    if (process.env.NODE_ENV === "production" && !process.env.APP_PASSWORD) {
+      return jsonError("Server is missing APP_PASSWORD.", 500);
+    }
+
+    if (process.env.APP_PASSWORD && passwordValue !== process.env.APP_PASSWORD) {
+      return jsonError("Invalid app password.", 401);
     }
 
     const language =

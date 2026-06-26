@@ -4,6 +4,8 @@ A small Next.js app for uploading an audio or video file from a tablet, sending 
 
 The app uses the official `openai` npm package and the `gpt-4o-transcribe` model. The OpenAI API key is read only on the server from `OPENAI_API_KEY`; it is never included in frontend code.
 
+The `APP_PASSWORD` environment variable protects the transcription endpoint from public use. In production, it must be set. Users must enter the matching password in the form before the app will spend API credits.
+
 ## Features
 
 - Mobile-friendly upload form for MP3, WAV, M4A, MP4, MPEG, WEBM, and OGG files.
@@ -36,6 +38,7 @@ Add your OpenAI API key to `.env.local`:
 
 ```bash
 OPENAI_API_KEY=sk-your_key_here
+APP_PASSWORD=choose-a-private-password
 OPENAI_FORMAT_MODEL=gpt-4.1-mini
 ```
 
@@ -53,8 +56,9 @@ Open the local URL printed by Next.js, usually `http://localhost:3000`.
 2. Push this project to that repository.
 3. In Vercel, import the GitHub repository as a new project.
 4. Add `OPENAI_API_KEY` as a Vercel environment variable.
-5. Optionally add `OPENAI_FORMAT_MODEL` if you want to override the default `gpt-4.1-mini` math-formatting model.
-6. Deploy the project.
+5. Add `APP_PASSWORD` as a Vercel environment variable to prevent public use of your API credits.
+6. Optionally add `OPENAI_FORMAT_MODEL` if you want to override the default `gpt-4.1-mini` math-formatting model.
+7. Deploy the project.
 
 Do not commit `.env`, `.env.local`, or any real API key to GitHub.
 

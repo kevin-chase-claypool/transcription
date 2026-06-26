@@ -130,6 +130,7 @@ ${body}
 
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [password, setPassword] = useState("");
   const [language, setLanguage] = useState("en");
   const [prompt, setPrompt] = useState("");
   const [formatMath, setFormatMath] = useState(false);
@@ -163,6 +164,7 @@ export default function Home() {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("password", password);
       formData.append("language", language.trim() || "en");
       formData.append("prompt", prompt.trim());
       formData.append("formatMath", String(formatMath));
@@ -285,6 +287,18 @@ export default function Home() {
         </div>
 
         <form className="form" onSubmit={handleSubmit}>
+          <label className="field">
+            <span>App password</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Required if configured"
+              autoComplete="current-password"
+              disabled={isLoading}
+            />
+          </label>
+
           <label className="field">
             <span>Audio or video file</span>
             <input
