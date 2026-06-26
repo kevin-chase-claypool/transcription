@@ -20,11 +20,11 @@ html {
 }
 
 body {
-  height: 100%;
+  min-height: 100%;
   margin: 0;
   background: var(--background);
   color: var(--text);
-  overflow: hidden;
+  overflow-y: auto;
   font-family:
     Arial,
     Helvetica,
@@ -38,22 +38,21 @@ textarea {
 }
 
 .page {
-  height: 100dvh;
+  min-height: 100dvh;
   padding: 10px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .card {
   width: min(100%, 720px);
-  height: min(100%, 940px);
-  max-height: calc(100dvh - 20px);
+  min-height: calc(100dvh - 20px);
   padding: 16px;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -324,12 +323,12 @@ textarea:disabled {
 
 .transcript {
   flex: 1 1 auto;
-  min-height: 110px;
+  min-height: 170px;
 }
 
 .transcript textarea {
-  min-height: 0;
-  height: 100%;
+  min-height: 170px;
+  height: clamp(170px, 28dvh, 320px);
   overflow: auto;
 }
 
@@ -365,7 +364,7 @@ textarea:disabled {
   }
 
   .card {
-    max-height: calc(100dvh - 16px);
+    min-height: calc(100dvh - 16px);
     padding: 12px;
   }
 
@@ -438,7 +437,7 @@ textarea:disabled {
   }
 
   .transcript {
-    min-height: 56px;
+    min-height: 120px;
   }
 
   .usage {
