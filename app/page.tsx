@@ -76,6 +76,58 @@ function formatTokenUsage(usage: FormattingUsage | null) {
   ].join(" • ");
 }
 
+function escapeLatexText(text: string) {
+  return text
+    .replace(/\\/g, "\\textbackslash{}")
+    .replace(/&/g, "\\&")
+    .replace(/%/g, "\\%")
+    .replace(/\$/g, "\\$")
+    .replace(/#/g, "\\#")
+    .replace(/_/g, "\\_")
+    .replace(/{/g, "\\{")
+    .replace(/}/g, "\\}")
+    .replace(/~/g, "\\textasciitilde{}")
+    .replace(/\^/g, "\\textasciicircum{}");
+}
+
+function escapeOutsideMath(text: string) {
+  const parts = text.split(/(\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\))/g);
+
+  return parts
+    .map((part) => {
+      if (part.startsWith("\\[") || part.startsWith("\\(")) {
+        return part;
+      }
+
+      return escapeLatexText(part);
+    })
+    .join("");
+}
+
+function buildTexDocument(transcript: string) {
+  const body = escapeOutsideMath(transcript.trim() || "No transcript yet.");
+
+  return `\\documentclass[11pt]{article}
+\\usepackage[T1]{fontenc}
+\\usepackage[utf8]{inputenc}
+\\usepackage{amsmath,amssymb}
+\\usepackage[margin=1in]{geometry}
+\\usepackage{microtype}
+\\setlength{\\parindent}{0pt}
+\\setlength{\\parskip}{0.8em}
+
+\\title{Math Class Transcript}
+\\date{\\today}
+
+\\begin{document}
+\\maketitle
+
+${body}
+
+\\end{document}
+`;
+}
+
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [language, setLanguage] = useState("en");
@@ -170,6 +222,55 @@ export default function Home() {
     link.remove();
     URL.revokeObjectURL(url);
     setStatus("Transcript downloaded.");
+  }
+
+  function downloadTex() {
+    if (!transcript) {
+      setStatus("There is no transcript to export yet.");
+      return;
+    }
+
+    const blob = new Blob([buildTexDocument(transcript)], {
+      type: "application/x-tex;charset=utf-8"
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "math-class-transcript.tex";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setStatus("LaTeX file downloaded.");
+  }
+
+  function openInOverleaf() {
+    if (!transcript) {
+      setStatus("There is no transcript to open in Overleaf yet.");
+      return;
+    }
+
+    const form = document.createElement("form");
+    form.action = "https://www.overleaf.com/docs";
+    form.method = "post";
+    form.target = "_blank";
+    form.rel = "noopener noreferrer";
+
+    const snippet = document.createElement("input");
+    snippet.type = "hidden";
+    snippet.name = "encoded_snip";
+    snippet.value = encodeURIComponent(buildTexDocument(transcript));
+
+    const engine = document.createElement("input");
+    engine.type = "hidden";
+    engine.name = "engine";
+    engine.value = "pdflatex";
+
+    form.append(snippet, engine);
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+    setStatus("Opening transcript in Overleaf...");
   }
 
   return (
@@ -277,6 +378,12 @@ export default function Home() {
             disabled={!transcript}
           >
             Download .txt
+          </button>
+          <button type="button" onClick={downloadTex} disabled={!transcript}>
+            Download .tex
+          </button>
+          <button type="button" onClick={openInOverleaf} disabled={!transcript}>
+            Open in Overleaf
           </button>
         </div>
       </section>
