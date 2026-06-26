@@ -72,7 +72,10 @@ export async function POST(request: Request) {
       prompt
     });
 
-    return Response.json({ text: transcription.text });
+    return Response.json({
+      text: transcription.text,
+      usage: transcription.usage
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Transcription failed.";

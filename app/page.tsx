@@ -4,16 +4,64 @@ import { FormEvent, useRef, useState } from "react";
 
 type TranscribeResponse = {
   text?: string;
+  usage?: TranscriptionUsage;
   error?: string;
 };
 
+type TranscriptionUsage =
+  | {
+      type: "duration";
+      seconds: number;
+    }
+  | {
+      type: "tokens";
+      input_tokens: number;
+      output_tokens: number;
+      total_tokens: number;
+      input_token_details?: {
+        audio_tokens?: number;
+        text_tokens?: number;
+      };
+    };
+
 const ACCEPTED_FORMATS = ".mp3,.wav,.m4a,.mp4,.mpeg,.webm,.ogg,audio/*,video/*";
+
+function formatUsage(usage: TranscriptionUsage | null) {
+  if (!usage) {
+    return "";
+  }
+
+  if (usage.type === "duration") {
+    const minutes = usage.seconds / 60;
+    return `${usage.seconds.toFixed(1)} seconds (${minutes.toFixed(2)} minutes)`;
+  }
+
+  const details = usage.input_token_details;
+  const detailParts = [
+    typeof details?.audio_tokens === "number"
+      ? `${details.audio_tokens.toLocaleString()} audio`
+      : "",
+    typeof details?.text_tokens === "number"
+      ? `${details.text_tokens.toLocaleString()} text`
+      : ""
+  ].filter(Boolean);
+
+  return [
+    `${usage.total_tokens.toLocaleString()} total tokens`,
+    `${usage.input_tokens.toLocaleString()} input`,
+    `${usage.output_tokens.toLocaleString()} output`,
+    detailParts.length ? `input details: ${detailParts.join(", ")}` : ""
+  ]
+    .filter(Boolean)
+    .join(" • ");
+}
 
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [language, setLanguage] = useState("en");
   const [prompt, setPrompt] = useState("");
   const [transcript, setTranscript] = useState("");
+  const [usage, setUsage] = useState<TranscriptionUsage | null>(null);
   const [status, setStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -27,6 +75,7 @@ export default function Home() {
     }
 
     setIsLoading(true);
+    setUsage(null);
     setStatus("Uploading and transcribing...");
 
     try {
@@ -47,6 +96,7 @@ export default function Home() {
       }
 
       setTranscript(data.text || "");
+      setUsage(data.usage || null);
       setStatus("Transcription complete.");
     } catch (error) {
       const message =
@@ -138,6 +188,13 @@ export default function Home() {
         <p className="status" role="status" aria-live="polite">
           {status || "Ready."}
         </p>
+
+        {usage ? (
+          <div className="usage" aria-label="API usage">
+            <span>API usage</span>
+            <strong>{formatUsage(usage)}</strong>
+          </div>
+        ) : null}
 
         <label className="field transcript">
           <span>Transcript</span>

@@ -12,6 +12,7 @@ The app uses the official `openai` npm package and the `gpt-4o-transcribe` model
 - Editable transcript textarea.
 - Copy transcript button.
 - Download transcript as `transcript.txt`.
+- API usage display for the returned audio duration or token totals.
 - Server-side file validation with a 25 MB upload limit.
 
 ## Run Locally

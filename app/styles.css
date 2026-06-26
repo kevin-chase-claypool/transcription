@@ -156,6 +156,27 @@ textarea:disabled {
   line-height: 1.45;
 }
 
+.usage {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 18px;
+  padding: 12px;
+  background: #f2f6fb;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.usage span {
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.usage strong {
+  font-size: 0.98rem;
+  line-height: 1.4;
+}
+
 .transcript textarea {
   min-height: 260px;
 }
