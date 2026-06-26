@@ -4,6 +4,9 @@ export const runtime = "nodejs";
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const DEFAULT_MATH_FORMAT_MODEL = "gpt-4.1-mini";
+const RATE_LIMIT_MAX_REQUESTS = 8;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
 const SUPPORTED_EXTENSIONS = new Set([
   "mp3",
   "wav",
@@ -22,21 +25,56 @@ function getExtension(filename: string) {
   return filename.split(".").pop()?.toLowerCase() || "";
 }
 
-async function formatMathTranscript(
+function getClientKey(request: Request) {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  return forwardedFor?.split(",")[0]?.trim() || "unknown";
+}
+
+function checkRateLimit(key: string) {
+  const now = Date.now();
+  const bucket = rateLimitBuckets.get(key);
+
+  if (!bucket || bucket.resetAt <= now) {
+    rateLimitBuckets.set(key, {
+      count: 1,
+      resetAt: now + RATE_LIMIT_WINDOW_MS
+    });
+    return null;
+  }
+
+  if (bucket.count >= RATE_LIMIT_MAX_REQUESTS) {
+    const minutes = Math.ceil((bucket.resetAt - now) / 60000);
+    return `Rate limit reached. Try again in about ${minutes} minute${
+      minutes === 1 ? "" : "s"
+    }.`;
+  }
+
+  bucket.count += 1;
+  return null;
+}
+
+async function formatTranscript(
   client: OpenAI,
   transcript: string,
+  mode: string,
   hints?: string
 ) {
+  const latexInstructions =
+    "Convert spoken equations, variables, functions, matrices, fractions, " +
+    "exponents, integrals, sums, limits, derivatives, and Greek letters into " +
+    "LaTeX when the math is clear. Use inline math with \\(...\\) and display " +
+    "math with \\[...\\].";
+
   const response = await client.responses.create({
     model: process.env.OPENAI_FORMAT_MODEL || DEFAULT_MATH_FORMAT_MODEL,
-    instructions:
-      "You convert raw math lecture transcripts into clean Markdown notes. " +
-      "Preserve the speaker's meaning and order. Convert spoken equations, " +
-      "variables, functions, matrices, fractions, exponents, integrals, sums, " +
-      "limits, derivatives, and Greek letters into LaTeX when the math is clear. " +
-      "Use inline math with \\(...\\) and display math with \\[...\\]. " +
-      "Do not invent equations or silently fix uncertain content. If wording is " +
-      "ambiguous, keep the original words or mark the math as unclear.",
+    instructions: [
+      "You convert raw class transcripts into clean Markdown notes.",
+      "Preserve the speaker's meaning and order.",
+      "Use headings, short paragraphs, and bullet lists where useful.",
+      mode === "latex" ? latexInstructions : "Keep math readable in plain text.",
+      "Do not invent equations or silently fix uncertain content.",
+      "If wording is ambiguous, keep the original words or mark it as unclear."
+    ].join(" "),
     input: [
       {
         role: "user",
@@ -68,7 +106,7 @@ export async function POST(request: Request) {
     const upload = formData.get("file");
     const languageValue = formData.get("language");
     const promptValue = formData.get("prompt");
-    const formatMathValue = formData.get("formatMath");
+    const modeValue = formData.get("mode");
     const passwordValue = formData.get("password");
 
     if (!(upload instanceof File)) {
@@ -103,6 +141,12 @@ export async function POST(request: Request) {
       return jsonError("Invalid app password.", 401);
     }
 
+    const rateLimitError = checkRateLimit(getClientKey(request));
+
+    if (rateLimitError) {
+      return jsonError(rateLimitError, 429);
+    }
+
     const language =
       typeof languageValue === "string" && languageValue.trim()
         ? languageValue.trim()
@@ -111,7 +155,8 @@ export async function POST(request: Request) {
       typeof promptValue === "string" && promptValue.trim()
         ? promptValue.trim()
         : undefined;
-    const formatMath = formatMathValue === "true";
+    const mode =
+      modeValue === "clean" || modeValue === "latex" ? modeValue : "raw";
 
     const client = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY
@@ -124,13 +169,13 @@ export async function POST(request: Request) {
       prompt
     });
 
-    const formatted = formatMath
-      ? await formatMathTranscript(client, transcription.text, prompt)
+    const formatted = mode === "clean" || mode === "latex"
+      ? await formatTranscript(client, transcription.text, mode, prompt)
       : null;
 
     return Response.json({
       text: formatted?.text || transcription.text,
-      rawText: formatMath ? transcription.text : undefined,
+      rawText: mode === "raw" ? undefined : transcription.text,
       usage: transcription.usage,
       formattingUsage: formatted?.usage || null
     });

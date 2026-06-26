@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 
 type TranscribeResponse = {
   text?: string;
@@ -33,6 +33,10 @@ type FormattingUsage = {
 };
 
 const ACCEPTED_FORMATS = ".mp3,.wav,.m4a,.mp4,.mpeg,.webm,.ogg,audio/*,video/*";
+const MAX_FILE_BYTES = 25 * 1024 * 1024;
+const PASSWORD_STORAGE_KEY = "tablet-transcriber-password";
+
+type TranscriptMode = "raw" | "clean" | "latex";
 
 function formatUsage(usage: TranscriptionUsage | null) {
   if (!usage) {
@@ -104,8 +108,40 @@ function escapeOutsideMath(text: string) {
     .join("");
 }
 
-function buildTexDocument(transcript: string) {
+function validateLatexDelimiters(text: string) {
+  const inlineOpen = (text.match(/\\\(/g) || []).length;
+  const inlineClose = (text.match(/\\\)/g) || []).length;
+  const displayOpen = (text.match(/\\\[/g) || []).length;
+  const displayClose = (text.match(/\\\]/g) || []).length;
+
+  if (inlineOpen !== inlineClose) {
+    return "LaTeX warning: inline math delimiters do not match.";
+  }
+
+  if (displayOpen !== displayClose) {
+    return "LaTeX warning: display math delimiters do not match.";
+  }
+
+  return "";
+}
+
+function formatFileSize(bytes: number) {
+  const megabytes = bytes / (1024 * 1024);
+  return `${megabytes.toFixed(2)} MB`;
+}
+
+function buildTexDocument(
+  transcript: string,
+  metadata: { course: string; lectureTitle: string; lectureDate: string }
+) {
   const body = escapeOutsideMath(transcript.trim() || "No transcript yet.");
+  const title = escapeLatexText(
+    metadata.lectureTitle.trim() || "Math Class Transcript"
+  );
+  const author = escapeLatexText(metadata.course.trim());
+  const date = metadata.lectureDate.trim()
+    ? escapeLatexText(metadata.lectureDate.trim())
+    : "\\today";
 
   return `\\documentclass[11pt]{article}
 \\usepackage[T1]{fontenc}
@@ -116,8 +152,8 @@ function buildTexDocument(transcript: string) {
 \\setlength{\\parindent}{0pt}
 \\setlength{\\parskip}{0.8em}
 
-\\title{Math Class Transcript}
-\\date{\\today}
+\\title{${title}}
+${author ? `\\author{${author}}\n` : ""}\\date{${date}}
 
 \\begin{document}
 \\maketitle
@@ -131,23 +167,66 @@ ${body}
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [password, setPassword] = useState("");
+  const [rememberPassword, setRememberPassword] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [language, setLanguage] = useState("en");
   const [prompt, setPrompt] = useState("");
-  const [formatMath, setFormatMath] = useState(false);
+  const [mode, setMode] = useState<TranscriptMode>("latex");
+  const [course, setCourse] = useState("");
+  const [lectureTitle, setLectureTitle] = useState("");
+  const [lectureDate, setLectureDate] = useState("");
   const [transcript, setTranscript] = useState("");
   const [rawTranscript, setRawTranscript] = useState("");
   const [usage, setUsage] = useState<TranscriptionUsage | null>(null);
   const [formattingUsage, setFormattingUsage] =
     useState<FormattingUsage | null>(null);
   const [status, setStatus] = useState("");
+  const [stage, setStage] = useState("Ready");
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const savedPassword = window.localStorage.getItem(PASSWORD_STORAGE_KEY);
+    if (savedPassword) {
+      setPassword(savedPassword);
+      setRememberPassword(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (rememberPassword) {
+      window.localStorage.setItem(PASSWORD_STORAGE_KEY, password);
+    } else {
+      window.localStorage.removeItem(PASSWORD_STORAGE_KEY);
+    }
+  }, [password, rememberPassword]);
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] || null;
+    setSelectedFile(file);
+
+    if (!file) {
+      return;
+    }
+
+    if (file.size > MAX_FILE_BYTES) {
+      setStatus(`File is ${formatFileSize(file.size)}. The limit is 25 MB.`);
+      return;
+    }
+
+    setStatus(`Selected ${file.name} (${formatFileSize(file.size)}).`);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const file = fileInputRef.current?.files?.[0];
+    const file = selectedFile || fileInputRef.current?.files?.[0];
     if (!file) {
       setStatus("Choose an audio or video file first.");
+      return;
+    }
+
+    if (file.size > MAX_FILE_BYTES) {
+      setStatus(`File is ${formatFileSize(file.size)}. The limit is 25 MB.`);
       return;
     }
 
@@ -155,11 +234,19 @@ export default function Home() {
     setUsage(null);
     setFormattingUsage(null);
     setRawTranscript("");
-    setStatus(
-      formatMath
-        ? "Uploading, transcribing, and formatting math..."
-        : "Uploading and transcribing..."
-    );
+    setStage("Uploading");
+    setStatus("Uploading file...");
+
+    const stageTimer = window.setTimeout(() => {
+      setStage(mode === "raw" ? "Transcribing" : "Formatting");
+      setStatus(
+        mode === "raw"
+          ? "Transcribing audio..."
+          : mode === "clean"
+            ? "Transcribing and creating clean notes..."
+            : "Transcribing and formatting LaTeX math..."
+      );
+    }, 1200);
 
     try {
       const formData = new FormData();
@@ -167,7 +254,7 @@ export default function Home() {
       formData.append("password", password);
       formData.append("language", language.trim() || "en");
       formData.append("prompt", prompt.trim());
-      formData.append("formatMath", String(formatMath));
+      formData.append("mode", mode);
 
       const response = await fetch("/api/transcribe", {
         method: "POST",
@@ -184,16 +271,15 @@ export default function Home() {
       setRawTranscript(data.rawText || "");
       setUsage(data.usage || null);
       setFormattingUsage(data.formattingUsage || null);
-      setStatus(
-        formatMath
-          ? "Transcription complete with math formatting."
-          : "Transcription complete."
-      );
+      setStage("Ready");
+      setStatus("Transcript ready.");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Something went wrong.";
+      setStage("Error");
       setStatus(message);
     } finally {
+      window.clearTimeout(stageTimer);
       setIsLoading(false);
     }
   }
@@ -232,9 +318,18 @@ export default function Home() {
       return;
     }
 
-    const blob = new Blob([buildTexDocument(transcript)], {
-      type: "application/x-tex;charset=utf-8"
-    });
+    const warning = validateLatexDelimiters(transcript);
+    if (warning) {
+      setStatus(`${warning} Review the transcript before exporting.`);
+      return;
+    }
+
+    const blob = new Blob(
+      [buildTexDocument(transcript, { course, lectureTitle, lectureDate })],
+      {
+        type: "application/x-tex;charset=utf-8"
+      }
+    );
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -252,6 +347,12 @@ export default function Home() {
       return;
     }
 
+    const warning = validateLatexDelimiters(transcript);
+    if (warning) {
+      setStatus(`${warning} Review the transcript before opening Overleaf.`);
+      return;
+    }
+
     const form = document.createElement("form");
     form.action = "https://www.overleaf.com/docs";
     form.method = "post";
@@ -261,7 +362,9 @@ export default function Home() {
     const snippet = document.createElement("input");
     snippet.type = "hidden";
     snippet.name = "encoded_snip";
-    snippet.value = encodeURIComponent(buildTexDocument(transcript));
+    snippet.value = encodeURIComponent(
+      buildTexDocument(transcript, { course, lectureTitle, lectureDate })
+    );
 
     const engine = document.createElement("input");
     engine.type = "hidden";
@@ -290,7 +393,7 @@ export default function Home() {
         </div>
 
         <form className="form" onSubmit={handleSubmit}>
-          <label className="field">
+          <label className="field password-field">
             <span>App password</span>
             <input
               type="password"
@@ -302,17 +405,68 @@ export default function Home() {
             />
           </label>
 
-          <label className="field">
+          <label className="checkbox remember">
+            <input
+              type="checkbox"
+              checked={rememberPassword}
+              onChange={(event) => setRememberPassword(event.target.checked)}
+              disabled={isLoading}
+            />
+            <span>Remember on this device</span>
+          </label>
+
+          <label className="field file-field">
             <span>Audio or video file</span>
             <input
               ref={fileInputRef}
               type="file"
               accept={ACCEPTED_FORMATS}
+              onChange={handleFileChange}
               disabled={isLoading}
             />
           </label>
 
-          <label className="field">
+          {selectedFile ? (
+            <p className="file-info">
+              {selectedFile.name} • {formatFileSize(selectedFile.size)} / 25 MB
+            </p>
+          ) : null}
+
+          <div className="metadata-grid">
+            <label className="field">
+              <span>Course</span>
+              <input
+                type="text"
+                value={course}
+                onChange={(event) => setCourse(event.target.value)}
+                placeholder="Calculus II"
+                disabled={isLoading}
+              />
+            </label>
+
+            <label className="field">
+              <span>Lecture title</span>
+              <input
+                type="text"
+                value={lectureTitle}
+                onChange={(event) => setLectureTitle(event.target.value)}
+                placeholder="Integration by parts"
+                disabled={isLoading}
+              />
+            </label>
+
+            <label className="field">
+              <span>Date</span>
+              <input
+                type="date"
+                value={lectureDate}
+                onChange={(event) => setLectureDate(event.target.value)}
+                disabled={isLoading}
+              />
+            </label>
+          </div>
+
+          <label className="field language-field">
             <span>Language</span>
             <input
               type="text"
@@ -324,7 +478,7 @@ export default function Home() {
             />
           </label>
 
-          <label className="field">
+          <label className="field prompt-field">
             <span>Prompt or hints</span>
             <textarea
               value={prompt}
@@ -335,20 +489,56 @@ export default function Home() {
             />
           </label>
 
-          <label className="checkbox">
-            <input
-              type="checkbox"
-              checked={formatMath}
-              onChange={(event) => setFormatMath(event.target.checked)}
-              disabled={isLoading}
-            />
-            <span>Format math as LaTeX</span>
-          </label>
+          <fieldset className="mode-field" disabled={isLoading}>
+            <legend>Transcript mode</legend>
+            <label>
+              <input
+                type="radio"
+                name="mode"
+                value="raw"
+                checked={mode === "raw"}
+                onChange={() => setMode("raw")}
+              />
+              <span>Raw</span>
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="mode"
+                value="clean"
+                checked={mode === "clean"}
+                onChange={() => setMode("clean")}
+              />
+              <span>Clean notes</span>
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="mode"
+                value="latex"
+                checked={mode === "latex"}
+                onChange={() => setMode("latex")}
+              />
+              <span>LaTeX math</span>
+            </label>
+          </fieldset>
 
           <button className="primary" type="submit" disabled={isLoading}>
             {isLoading ? "Transcribing..." : "Transcribe"}
           </button>
         </form>
+
+        <div className="stage-bar" aria-label="Progress stage">
+          {["Uploading", "Transcribing", "Formatting", "Ready"].map((item) => (
+            <span
+              key={item}
+              className={stage === item ? "active" : ""}
+              aria-current={stage === item ? "step" : undefined}
+            >
+              {item}
+            </span>
+          ))}
+        </div>
 
         <p className="status" role="status" aria-live="polite">
           {status || "Ready."}
@@ -369,7 +559,7 @@ export default function Home() {
         ) : null}
 
         <label className="field transcript">
-          <span>{formatMath ? "Formatted transcript" : "Transcript"}</span>
+          <span>{mode === "raw" ? "Transcript" : "Formatted transcript"}</span>
           <textarea
             value={transcript}
             onChange={(event) => setTranscript(event.target.value)}

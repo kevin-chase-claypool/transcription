@@ -9,9 +9,13 @@ The `APP_PASSWORD` environment variable protects the transcription endpoint from
 ## Features
 
 - Mobile-friendly upload form for MP3, WAV, M4A, MP4, MPEG, WEBM, and OGG files.
+- Optional "remember on this device" app-password storage in the browser.
+- File size display before upload, with the 25 MB limit shown early.
+- Course, lecture title, and date fields for generated LaTeX exports.
 - Optional language field, defaulting to `en`.
 - Optional prompt/hints field for names, jargon, places, or vocabulary.
-- Optional math formatting pass that converts clear spoken equations into LaTeX-flavored Markdown.
+- Transcript modes for raw transcript, clean notes, or LaTeX math notes.
+- Staged status display for upload, transcription, formatting, and ready states.
 - Editable transcript textarea.
 - Copy transcript button.
 - Download transcript as `transcript.txt`.
@@ -19,6 +23,8 @@ The `APP_PASSWORD` environment variable protects the transcription endpoint from
 - Open the generated `.tex` document directly in Overleaf.
 - API usage display for the returned audio duration or token totals.
 - Server-side file validation with a 25 MB upload limit.
+- Lightweight server-side rate limiting to reduce accidental or abusive use.
+- LaTeX delimiter validation before `.tex` export or Overleaf import.
 
 ## Run Locally
 
@@ -66,6 +72,6 @@ Do not commit `.env`, `.env.local`, or any real API key to GitHub.
 
 OpenAI file uploads for this transcription route are limited to 25 MB, so this app rejects larger files before calling the API. Low-bitrate MP3s such as 48 kbps can work, but transcription accuracy may be lower if the audio is noisy, distorted, or hard to hear.
 
-The "Format math as LaTeX" option makes a second OpenAI API call after transcription. That second call can improve math lecture notes, but it adds token usage and cost. The app shows formatting token usage separately when OpenAI returns it.
+The "Clean notes" and "LaTeX math" modes make a second OpenAI API call after transcription. That second call can improve class notes, but it adds token usage and cost. The app shows formatting token usage separately when OpenAI returns it.
 
 The "Open in Overleaf" button posts the generated LaTeX document to Overleaf's official `https://www.overleaf.com/docs` import endpoint. Overleaf handles project creation and PDF compilation after the new tab opens.
