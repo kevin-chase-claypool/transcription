@@ -132,14 +132,15 @@ function normalizeBareMathSyntax(text: string) {
     .replace(/\\\{\}\)/g, "\\)")
     .replace(/\\\{\}\[/g, "\\[")
     .replace(/\\\{\}\]/g, "\\]")
-    .replace(/\\\{\}/g, "\\")
+    .replace(/\\\{\}/g, "")
     .replace(/\\textbackslash\{\}\(/g, "\\(")
     .replace(/\\textbackslash\{\}\)/g, "\\)")
     .replace(/\\textbackslash\{\}\[/g, "\\[")
     .replace(/\\textbackslash\{\}\]/g, "\\]")
-    .replace(/\\textbackslash\{\}/g, "\\")
+    .replace(/\\textbackslash\{\}/g, "")
     .replace(/\\\{/g, "{")
-    .replace(/\\\}/g, "}");
+    .replace(/\\\}/g, "}")
+    .replace(/\\\\(?=[A-Za-z])/g, "\\");
 }
 
 function isEmptyLatexArtifactLine(line: string) {
@@ -147,6 +148,7 @@ function isEmptyLatexArtifactLine(line: string) {
     .replace(/\s/g, "");
 
   return [
+    "",
     "\\",
     "{}",
     "\\(\\)",
