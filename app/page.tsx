@@ -267,6 +267,8 @@ function cleanLatexBody(body: string) {
     .replace(/\\textbackslash\{\\\}\\\{\\\}/g, "")
     .replace(/\\textbackslash\{\}\\\{\\\}/g, "")
     .replace(/\\textbackslash\{\}\\\{\\textbackslash\{\}\\\}/g, "")
+    .replace(/(^|\n)\s*(?:\\textbackslash\{\\\}\\\{\\\}|\\textbackslash\{\}\\\{\\\}|\\textbackslash\{\}|\\\{\\\}|\\\{\}|\{\\\}|\{\})+\s*/g, "$1")
+    .replace(/\s+(?:\\textbackslash\{\\\}\\\{\\\}|\\textbackslash\{\}\\\{\\\}|\\textbackslash\{\}|\\\{\\\}|\\\{\}|\{\\\}|\{\})+(?=\s|$)/g, " ")
     .replace(/\\textbackslash\{\}/g, "")
     .replace(/\\textbackslash/g, "")
     .replace(/\\?\{\\?\}/g, "")
