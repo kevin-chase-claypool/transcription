@@ -156,6 +156,10 @@ function isEmptyLatexArtifactLine(line: string) {
   return [
     "",
     "\\",
+    "\\(",
+    "\\)",
+    "\\[",
+    "\\]",
     "[",
     "]",
     "[]",
@@ -194,6 +198,10 @@ function convertMarkdownLineToLatex(line: string) {
   const trimmed = line.trim();
   const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
 
+  if (isEmptyLatexArtifactLine(line)) {
+    return "";
+  }
+
   if (heading) {
     const command =
       heading[1].length === 1
@@ -207,10 +215,6 @@ function convertMarkdownLineToLatex(line: string) {
 
   if (/^-{3,}$/.test(trimmed)) {
     return "\\bigskip\\hrule\\bigskip";
-  }
-
-  if (isEmptyLatexArtifactLine(line)) {
-    return "";
   }
 
   if (looksLikeBareMath(line)) {
