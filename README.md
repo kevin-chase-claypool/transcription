@@ -23,6 +23,7 @@ The `APP_PASSWORD` environment variable protects the transcription endpoint from
 - Download transcript as `transcript.txt`.
 - Download transcript as a complete `.tex` document.
 - Open the generated `.tex` document directly in Overleaf.
+- Markdown headings and bullets are converted into real LaTeX sections and lists during `.tex` export.
 - API usage display for the returned audio duration or token totals.
 - Server-side file validation with a 25 MB upload limit.
 - Lightweight server-side rate limiting to reduce accidental or abusive use.

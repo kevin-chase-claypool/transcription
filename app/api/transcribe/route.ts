@@ -104,6 +104,8 @@ async function formatTranscript(
       "After the introduction, include the main lecture transcript or notes in logical order.",
       "End with a 'Study Summary' section containing key ideas, formulas, definitions, and likely review points.",
       "Use headings, short paragraphs, and bullet lists where useful.",
+      "Use Markdown headings and Markdown bullet lists for document structure.",
+      "Do not output LaTeX document structure commands like \\section, \\subsection, \\begin{itemize}, \\end{itemize}, or \\item.",
       mode === "latex" ? latexInstructions : "Keep math readable in plain text.",
       "Do not invent equations or silently fix uncertain content.",
       "If wording is ambiguous, keep the original words or mark it as unclear."

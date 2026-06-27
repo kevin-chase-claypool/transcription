@@ -108,6 +108,81 @@ function escapeOutsideMath(text: string) {
     .join("");
 }
 
+function stripMarkdownMarks(text: string) {
+  return text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/`([^`]+)`/g, "$1");
+}
+
+function normalizeLatexStructure(text: string) {
+  return text
+    .replace(/\\\{\}section\*/g, "\\section*")
+    .replace(/\\textbackslash\{\}section\*/g, "\\section*")
+    .replace(/\\\{\}subsection\*/g, "\\subsection*")
+    .replace(/\\textbackslash\{\}subsection\*/g, "\\subsection*")
+    .replace(/\\\{\}begin\{itemize\}/g, "\\begin{itemize}")
+    .replace(/\\textbackslash\{\}begin\{itemize\}/g, "\\begin{itemize}")
+    .replace(/\\\{\}end\{itemize\}/g, "\\end{itemize}")
+    .replace(/\\textbackslash\{\}end\{itemize\}/g, "\\end{itemize}")
+    .replace(/\\\{\}item\b/g, "\\item")
+    .replace(/\\textbackslash\{\}item\b/g, "\\item");
+}
+
+function convertMarkdownLineToLatex(line: string) {
+  const trimmed = line.trim();
+  const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
+
+  if (heading) {
+    const command =
+      heading[1].length === 1
+        ? "section"
+        : heading[1].length === 2
+          ? "subsection"
+          : "subsubsection";
+
+    return `\\${command}*{${escapeOutsideMath(stripMarkdownMarks(heading[2]))}}`;
+  }
+
+  if (/^-{3,}$/.test(trimmed)) {
+    return "\\bigskip\\hrule\\bigskip";
+  }
+
+  return escapeOutsideMath(stripMarkdownMarks(line));
+}
+
+function transcriptToLatexBody(transcript: string) {
+  const lines = normalizeLatexStructure(
+    transcript.trim() || "No transcript yet."
+  ).split(/\r?\n/);
+  const output: string[] = [];
+  let inItemize = false;
+
+  for (const line of lines) {
+    const bullet = line.match(/^\s*[-*]\s+(.+)$/);
+
+    if (bullet) {
+      if (!inItemize) {
+        output.push("\\begin{itemize}");
+        inItemize = true;
+      }
+
+      output.push(`\\item ${escapeOutsideMath(stripMarkdownMarks(bullet[1]))}`);
+      continue;
+    }
+
+    if (inItemize) {
+      output.push("\\end{itemize}");
+      inItemize = false;
+    }
+
+    output.push(convertMarkdownLineToLatex(line));
+  }
+
+  if (inItemize) {
+    output.push("\\end{itemize}");
+  }
+
+  return output.join("\n");
+}
+
 function validateLatexDelimiters(text: string) {
   const inlineOpen = (text.match(/\\\(/g) || []).length;
   const inlineClose = (text.match(/\\\)/g) || []).length;
@@ -154,7 +229,7 @@ function buildTexDocument(
   transcript: string,
   metadata: { course: string; lectureTitle: string; lectureDate: string }
 ) {
-  const body = escapeOutsideMath(transcript.trim() || "No transcript yet.");
+  const body = transcriptToLatexBody(transcript);
   const title = escapeLatexText(
     metadata.lectureTitle.trim() || "Math Class Transcript"
   );
