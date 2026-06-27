@@ -3,8 +3,9 @@ import "katex/dist/katex.min.css";
 import "./styles.css";
 
 export const metadata: Metadata = {
-  title: "Tablet Transcriber",
-  description: "Upload an audio or video file and transcribe it with OpenAI."
+  title: "LectureForge",
+  description:
+    "Create searchable lecture notes from audio, video, and board photos."
 };
 
 export default function RootLayout({

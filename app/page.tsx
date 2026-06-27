@@ -75,7 +75,7 @@ const ACCEPTED_IMAGE_FORMATS = "image/*";
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const BOARD_IMAGE_MAX_DIMENSION = 1600;
 const BOARD_IMAGE_QUALITY = 0.72;
-const PASSWORD_STORAGE_KEY = "tablet-transcriber-password";
+const PASSWORD_STORAGE_KEY = "lectureforge-password";
 
 type TranscriptMode = "raw" | "clean" | "latex";
 
@@ -1042,7 +1042,7 @@ export default function Home() {
         <div className="header">
           <div className="title-row">
             <img src="/icon.svg" alt="" aria-hidden="true" />
-            <h1 id="page-title">Audio Transcriber</h1>
+            <h1 id="page-title">LectureForge</h1>
           </div>
           <p>
             Upload audio/video, board photos, or both, then edit the generated

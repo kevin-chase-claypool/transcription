@@ -1,4 +1,4 @@
-# Tablet Transcriber
+# LectureForge
 
 A small Next.js app for uploading an audio/video file, board photos, or both from a tablet, sending the content to OpenAI server-side APIs, and editing the returned transcript or lesson in the browser.
 
