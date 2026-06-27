@@ -587,6 +587,20 @@ export default function Home() {
     setStatus("Opening transcript in Overleaf...");
   }
 
+  function resetTranscript() {
+    setSelectedFile(null);
+    setTranscript("");
+    setRawTranscript("");
+    setUsage(null);
+    setFormattingUsage(null);
+    setStage("Ready");
+    setStatus("Ready.");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
   return (
     <main className="page">
       <section className="card" aria-labelledby="page-title">
@@ -641,6 +655,40 @@ export default function Home() {
             </p>
           ) : null}
 
+          <fieldset className="mode-field" disabled={isLoading}>
+            <legend>Transcript mode</legend>
+            <label>
+              <input
+                type="radio"
+                name="mode"
+                value="raw"
+                checked={mode === "raw"}
+                onChange={() => setMode("raw")}
+              />
+              <span>Raw</span>
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="mode"
+                value="clean"
+                checked={mode === "clean"}
+                onChange={() => setMode("clean")}
+              />
+              <span>Notes</span>
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="mode"
+                value="latex"
+                checked={mode === "latex"}
+                onChange={() => setMode("latex")}
+              />
+              <span>LaTeX</span>
+            </label>
+          </fieldset>
+
           <div className="metadata-grid">
             <label className="field">
               <span>Course</span>
@@ -675,62 +723,33 @@ export default function Home() {
             </label>
           </div>
 
-          <label className="field language-field">
-            <span>Language</span>
-            <input
-              type="text"
-              inputMode="text"
-              value={language}
-              onChange={(event) => setLanguage(event.target.value)}
-              placeholder="en"
-              disabled={isLoading}
-            />
-          </label>
+          <details className="advanced">
+            <summary>Advanced</summary>
+            <div className="advanced-grid">
+              <label className="field language-field">
+                <span>Language</span>
+                <input
+                  type="text"
+                  inputMode="text"
+                  value={language}
+                  onChange={(event) => setLanguage(event.target.value)}
+                  placeholder="en"
+                  disabled={isLoading}
+                />
+              </label>
 
-          <label className="field prompt-field">
-            <span>Lecture context and vocabulary</span>
-            <textarea
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Names, theorem names, symbols, textbook section, vocabulary..."
-              rows={2}
-              disabled={isLoading}
-            />
-          </label>
-
-          <fieldset className="mode-field" disabled={isLoading}>
-            <legend>Transcript mode</legend>
-            <label>
-              <input
-                type="radio"
-                name="mode"
-                value="raw"
-                checked={mode === "raw"}
-                onChange={() => setMode("raw")}
-              />
-              <span>Raw</span>
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="mode"
-                value="clean"
-                checked={mode === "clean"}
-                onChange={() => setMode("clean")}
-              />
-              <span>Clean notes</span>
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="mode"
-                value="latex"
-                checked={mode === "latex"}
-                onChange={() => setMode("latex")}
-              />
-              <span>LaTeX math</span>
-            </label>
-          </fieldset>
+              <label className="field prompt-field">
+                <span>Lecture context and vocabulary</span>
+                <textarea
+                  value={prompt}
+                  onChange={(event) => setPrompt(event.target.value)}
+                  placeholder="Names, theorem names, symbols, textbook section, vocabulary..."
+                  rows={2}
+                  disabled={isLoading}
+                />
+              </label>
+            </div>
+          </details>
 
           <button className="primary" type="submit" disabled={isLoading}>
             {isLoading ? "Transcribing..." : "Transcribe"}
@@ -753,38 +772,24 @@ export default function Home() {
           {status || "Ready."}
         </p>
 
-        {usage ? (
-          <div className="usage" aria-label="API usage">
-            <span>Transcription usage</span>
-            <strong>{formatUsage(usage)}</strong>
-          </div>
-        ) : null}
+        {usage || formattingUsage ? (
+          <details className="usage-details">
+            <summary>Usage details</summary>
+            {usage ? (
+              <div className="usage" aria-label="API usage">
+                <span>Transcription</span>
+                <strong>{formatUsage(usage)}</strong>
+              </div>
+            ) : null}
 
-        {formattingUsage ? (
-          <div className="usage" aria-label="Formatting usage">
-            <span>Math formatting usage</span>
-            <strong>{formatTokenUsage(formattingUsage)}</strong>
-          </div>
+            {formattingUsage ? (
+              <div className="usage" aria-label="Formatting usage">
+                <span>Formatting</span>
+                <strong>{formatTokenUsage(formattingUsage)}</strong>
+              </div>
+            ) : null}
+          </details>
         ) : null}
-
-        <div className="actions">
-          <button type="button" onClick={copyTranscript} disabled={!transcript}>
-            Copy transcript
-          </button>
-          <button
-            type="button"
-            onClick={downloadTranscript}
-            disabled={!transcript}
-          >
-            Download .txt
-          </button>
-          <button type="button" onClick={downloadTex} disabled={!transcript}>
-            Download .tex
-          </button>
-          <button type="button" onClick={openInOverleaf} disabled={!transcript}>
-            Open in Overleaf
-          </button>
-        </div>
 
         <label className="field transcript">
           <span>{mode === "raw" ? "Transcript" : "Formatted transcript"}</span>
@@ -795,6 +800,28 @@ export default function Home() {
             rows={8}
           />
         </label>
+
+        <div className="actions">
+          <button type="button" onClick={copyTranscript} disabled={!transcript}>
+            Copy
+          </button>
+          <button
+            type="button"
+            onClick={downloadTranscript}
+            disabled={!transcript}
+          >
+            .txt
+          </button>
+          <button type="button" onClick={downloadTex} disabled={!transcript}>
+            .tex
+          </button>
+          <button type="button" onClick={openInOverleaf} disabled={!transcript}>
+            Overleaf
+          </button>
+          <button type="button" onClick={resetTranscript} disabled={isLoading}>
+            New
+          </button>
+        </div>
 
         {rawTranscript ? (
           <details className="raw-transcript">

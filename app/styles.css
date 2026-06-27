@@ -100,7 +100,7 @@ textarea {
 
 .file-info,
 .metadata-grid,
-.prompt-field,
+.advanced,
 .mode-field,
 .primary {
   grid-column: 1 / -1;
@@ -111,8 +111,7 @@ textarea {
   grid-column: 1;
 }
 
-.remember,
-.language-field {
+.remember {
   grid-column: 2;
 }
 
@@ -219,7 +218,40 @@ textarea {
 }
 
 .mode-field input {
-  accent-color: var(--primary);
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mode-field label:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #ffffff;
+}
+
+.advanced,
+.usage-details {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f7f9fc;
+}
+
+.advanced summary,
+.usage-details summary {
+  min-height: 36px;
+  padding: 8px 10px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.advanced-grid {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 8px;
+  padding: 0 10px 10px;
 }
 
 .primary,
@@ -243,13 +275,13 @@ textarea {
 
 .actions {
   position: sticky;
-  top: 0;
+  bottom: 0;
   z-index: 2;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0 0 10px;
-  padding: 8px 0;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 8px 0 0;
   background: var(--card);
   flex: 0 0 auto;
 }
@@ -307,11 +339,7 @@ textarea:disabled {
 .usage {
   display: grid;
   gap: 2px;
-  margin: 0 0 8px;
-  padding: 8px 10px;
-  background: #f2f6fb;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  padding: 0 10px 8px;
   flex: 0 0 auto;
 }
 
@@ -328,12 +356,12 @@ textarea:disabled {
 
 .transcript {
   flex: 1 1 auto;
-  min-height: 170px;
+  min-height: 230px;
 }
 
 .transcript textarea {
-  min-height: 170px;
-  height: clamp(170px, 28dvh, 320px);
+  min-height: 230px;
+  height: clamp(230px, 42dvh, 520px);
   overflow: auto;
 }
 
@@ -373,23 +401,26 @@ textarea:disabled {
     padding: 12px;
   }
 
-  .actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .form {
     grid-template-columns: 1fr;
   }
 
   .password-field,
   .file-field,
-  .remember,
-  .language-field {
+  .remember {
     grid-column: 1;
   }
 
   .metadata-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .advanced-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -446,7 +477,7 @@ textarea:disabled {
   }
 
   .usage {
-    padding: 6px 8px;
+    padding: 0 8px 6px;
   }
 
   .usage strong {
