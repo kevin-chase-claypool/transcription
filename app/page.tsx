@@ -127,7 +127,8 @@ function normalizeLatexStructure(text: string) {
     .replace(/\\\{\}item\b/g, "\\item")
     .replace(/\\textbackslash\{\}item\b/g, "\\item")
     .replace(/\\\{\}/g, "")
-    .replace(/\\textbackslash\{\}/g, "");
+    .replace(/\\textbackslash\{\}/g, "")
+    .replace(/\\\{\\\}/g, "");
 }
 
 function normalizeBareMathSyntax(text: string) {
@@ -142,6 +143,7 @@ function normalizeBareMathSyntax(text: string) {
     .replace(/\\textbackslash\{\}\[/g, "\\[")
     .replace(/\\textbackslash\{\}\]/g, "\\]")
     .replace(/\\textbackslash\{\}/g, "")
+    .replace(/\\\{\\\}/g, "")
     .replace(/\\\{/g, "{")
     .replace(/\\\}/g, "}")
     .replace(/\\\\(?=[A-Za-z])/g, "\\");
@@ -257,7 +259,7 @@ function transcriptToLatexBody(transcript: string) {
     output.push("\\end{itemize}");
   }
 
-  return output.join("\n");
+  return output.join("\n").replace(/\n{3,}/g, "\n\n");
 }
 
 function validateLatexDelimiters(text: string) {
