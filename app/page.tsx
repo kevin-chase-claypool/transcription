@@ -126,6 +126,36 @@ function normalizeLatexStructure(text: string) {
     .replace(/\\textbackslash\{\}item\b/g, "\\item");
 }
 
+function normalizeBareMathSyntax(text: string) {
+  return text
+    .replace(/\\\{\}/g, "\\")
+    .replace(/\\textbackslash\{\}/g, "\\")
+    .replace(/\\\{/g, "{")
+    .replace(/\\\}/g, "}");
+}
+
+function looksLikeBareMath(line: string) {
+  const trimmed = normalizeBareMathSyntax(stripMarkdownMarks(line.trim()));
+
+  if (!trimmed || trimmed.startsWith("\\(") || trimmed.startsWith("\\[")) {
+    return false;
+  }
+
+  const mathCommandCount = (
+    trimmed.match(
+      /\\(?:frac|sqrt|int|sum|lim|theta|rho|alpha|beta|gamma|delta|partial|left|right|cdot|sin|cos|tan|ln|log)\b/g
+    ) || []
+  ).length;
+  const operatorCount = (trimmed.match(/[=^_+\-*/]/g) || []).length;
+  const wordCount = (trimmed.match(/[A-Za-z]{3,}/g) || []).length;
+
+  return mathCommandCount > 0 && operatorCount > 0 && wordCount <= 3;
+}
+
+function bareMathToDisplay(line: string) {
+  return `\\[\n${normalizeBareMathSyntax(stripMarkdownMarks(line.trim()))}\n\\]`;
+}
+
 function convertMarkdownLineToLatex(line: string) {
   const trimmed = line.trim();
   const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
@@ -143,6 +173,10 @@ function convertMarkdownLineToLatex(line: string) {
 
   if (/^-{3,}$/.test(trimmed)) {
     return "\\bigskip\\hrule\\bigskip";
+  }
+
+  if (looksLikeBareMath(line)) {
+    return bareMathToDisplay(line);
   }
 
   return escapeOutsideMath(stripMarkdownMarks(line));
@@ -164,7 +198,13 @@ function transcriptToLatexBody(transcript: string) {
         inItemize = true;
       }
 
-      output.push(`\\item ${escapeOutsideMath(stripMarkdownMarks(bullet[1]))}`);
+      output.push(
+        `\\item ${
+          looksLikeBareMath(bullet[1])
+            ? normalizeBareMathSyntax(stripMarkdownMarks(bullet[1].trim()))
+            : escapeOutsideMath(stripMarkdownMarks(bullet[1]))
+        }`
+      );
       continue;
     }
 

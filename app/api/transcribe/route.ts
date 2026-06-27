@@ -93,7 +93,7 @@ async function formatTranscript(
     "Convert spoken equations, variables, functions, matrices, fractions, " +
     "exponents, integrals, sums, limits, derivatives, and Greek letters into " +
     "LaTeX when the math is clear. Use inline math with \\(...\\) and display " +
-    "math with \\[...\\].";
+    "math with \\[...\\]. Every standalone equation must be wrapped in \\[...\\].";
 
   const response = await client.responses.create({
     model: process.env.OPENAI_FORMAT_MODEL || DEFAULT_MATH_FORMAT_MODEL,
