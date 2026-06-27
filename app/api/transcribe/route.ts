@@ -83,6 +83,42 @@ function buildLectureContext({
     .join("\n");
 }
 
+function contextValue(context: string, label: string) {
+  const line = context
+    .split("\n")
+    .find((item) => item.toLowerCase().startsWith(label.toLowerCase()));
+  return line?.slice(label.length).trim() || "";
+}
+
+function cleanFormattedTranscript(text: string, context: string) {
+  const withoutFences = text
+    .replace(/^```(?:latex|tex|markdown|md)?\s*/gim, "")
+    .replace(/^```\s*$/gim, "")
+    .trim();
+  const topic =
+    contextValue(context, "Lecture title/topic:") ||
+    contextValue(context, "Course:") ||
+    "this lecture";
+  const hasIntroduction =
+    /(^|\n)\s*#{1,3}\s*Study Introduction\b/i.test(withoutFences) ||
+    /(^|\n)\s*Study Introduction\b/i.test(withoutFences);
+  const hasSummary =
+    /(^|\n)\s*#{1,3}\s*Study Summary\b/i.test(withoutFences) ||
+    /(^|\n)\s*Study Summary\b/i.test(withoutFences);
+
+  return [
+    hasIntroduction
+      ? ""
+      : `## Study Introduction\nThis lecture focuses on ${topic}. The notes below organize the transcript into study material and highlight the main ideas, formulas, and terminology from the audio.`,
+    withoutFences,
+    hasSummary
+      ? ""
+      : "## Study Summary\nReview the main definitions, formulas, and worked steps above. Focus on how each formula is derived, what each variable represents, and when each result applies."
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 async function formatTranscript(
   client: OpenAI,
   transcript: string,
@@ -99,10 +135,12 @@ async function formatTranscript(
     model: process.env.OPENAI_FORMAT_MODEL || DEFAULT_MATH_FORMAT_MODEL,
     instructions: [
       "You convert raw class transcripts into clean Markdown notes.",
+      "Return Markdown content only. Do not wrap the answer in a code fence.",
+      "You must include exactly these top-level Markdown headings in this order: ## Study Introduction, ## Lecture Notes, ## Study Summary.",
       "Preserve the speaker's meaning and order.",
-      "Begin with a concise 'Study Introduction' section that previews the lecture topic and why it matters.",
-      "After the introduction, include the main lecture transcript or notes in logical order.",
-      "End with a 'Study Summary' section containing key ideas, formulas, definitions, and likely review points.",
+      "The Study Introduction must preview the lecture topic and why it matters.",
+      "The Lecture Notes section must include the main lecture transcript or notes in logical order.",
+      "The Study Summary section must contain key ideas, formulas, definitions, and likely review points.",
       "Use headings, short paragraphs, and bullet lists where useful.",
       "Use Markdown headings and Markdown bullet lists for document structure.",
       "Do not output LaTeX document structure commands like \\section, \\subsection, \\begin{itemize}, \\end{itemize}, or \\item.",
@@ -131,7 +169,7 @@ async function formatTranscript(
   });
 
   return {
-    text: response.output_text || transcript,
+    text: cleanFormattedTranscript(response.output_text || transcript, context),
     usage: response.usage
   };
 }

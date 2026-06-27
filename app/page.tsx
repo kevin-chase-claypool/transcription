@@ -114,6 +114,8 @@ function stripMarkdownMarks(text: string) {
 
 function normalizeLatexStructure(text: string) {
   return text
+    .replace(/^```(?:latex|tex|markdown|md)?\s*$/gim, "")
+    .replace(/^```\s*$/gim, "")
     .replace(/\\\{\}section\*/g, "\\section*")
     .replace(/\\textbackslash\{\}section\*/g, "\\section*")
     .replace(/\\\{\}subsection\*/g, "\\subsection*")
