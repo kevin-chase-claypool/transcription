@@ -1,6 +1,6 @@
 # Tablet Transcriber
 
-A small Next.js app for uploading an audio or video file from a tablet, sending it to OpenAI's server-side speech-to-text API, and editing the returned transcript in the browser.
+A small Next.js app for uploading an audio/video file, board photos, or both from a tablet, sending the content to OpenAI server-side APIs, and editing the returned transcript or lesson in the browser.
 
 The app uses the official `openai` npm package and the `gpt-4o-transcribe` model. The OpenAI API key is read only on the server from `OPENAI_API_KEY`; it is never included in frontend code.
 
@@ -13,6 +13,7 @@ The `APP_PASSWORD` environment variable protects the transcription endpoint from
 - File size display before upload, with the 25 MB limit shown early.
 - Course, lecture title, and date fields that guide transcription and generated LaTeX exports.
 - Optional board-photo uploads so whiteboard equations and diagrams can augment clean notes and LaTeX output.
+- Photo-only lesson generation when no audio recording is available.
 - Searchable metadata block at the top of every generated transcript.
 - Optional language field, defaulting to `en`.
 - Optional lecture context field for names, theorem names, symbols, jargon, places, or vocabulary.
@@ -76,11 +77,11 @@ Do not commit `.env`, `.env.local`, or any real API key to GitHub.
 
 ## Notes
 
-OpenAI file uploads for this transcription route are limited to 25 MB, so this app rejects larger files before calling the API. Low-bitrate MP3s such as 48 kbps can work, but transcription accuracy may be lower if the audio is noisy, distorted, or hard to hear.
+OpenAI file uploads for this transcription route are limited to 25 MB, so this app rejects larger audio/video files before calling the API. Low-bitrate MP3s such as 48 kbps can work, but transcription accuracy may be lower if the audio is noisy, distorted, or hard to hear.
 
 The "Clean notes" and "LaTeX math" modes make a second OpenAI API call after transcription. That second call can improve class notes, add a study introduction, and add an end-of-transcript study summary, but it adds token usage and cost. The app shows formatting token usage separately when OpenAI returns it.
 
-Board photos are optional and are used only in "Clean notes" and "LaTeX math" modes. The browser compresses selected photos before upload, and the server extracts concise whiteboard context before formatting the transcript. There is no fixed photo-count limit in the UI, but very large batches can still hit browser, network, Vercel, or API request-size limits. Use clear photos of the board rather than many near-duplicate images.
+Board photos are optional. With audio/video, they are used in "Clean notes" and "LaTeX math" modes to augment the transcript with visible whiteboard context. Without audio/video, the app can generate a structured lesson from board photos alone. The browser compresses selected photos before upload, and the server extracts concise whiteboard context before creating notes. There is no fixed photo-count limit in the UI, but very large batches can still hit browser, network, Vercel, or API request-size limits. Use clear photos of the board rather than many near-duplicate images.
 
 The "Open in Overleaf" button posts the generated LaTeX document to Overleaf's official `https://www.overleaf.com/docs` import endpoint. Overleaf handles project creation and PDF compilation after the new tab opens.
 

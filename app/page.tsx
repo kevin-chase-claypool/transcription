@@ -518,12 +518,14 @@ export default function Home() {
     event.preventDefault();
 
     const file = selectedFile || fileInputRef.current?.files?.[0];
-    if (!file) {
-      setStatus("Choose an audio or video file first.");
+    const requestMode: TranscriptMode = file ? mode : mode === "raw" ? "clean" : mode;
+
+    if (!file && boardPhotos.length === 0) {
+      setStatus("Choose an audio/video file or add board photos first.");
       return;
     }
 
-    if (file.size > MAX_FILE_BYTES) {
+    if (file && file.size > MAX_FILE_BYTES) {
       setStatus(`File is ${formatFileSize(file.size)}. The limit is 25 MB.`);
       return;
     }
@@ -535,14 +537,16 @@ export default function Home() {
     setFormattingUsage(null);
     setRawTranscript("");
     setStage("Uploading");
-    setStatus("Uploading file...");
+    setStatus(file ? "Uploading file..." : "Uploading board photos...");
 
     const stageTimer = window.setTimeout(() => {
-      setStage(mode === "raw" ? "Transcribing" : "Formatting");
+      setStage(file && requestMode === "raw" ? "Transcribing" : "Formatting");
       setStatus(
-        mode === "raw"
+        !file
+          ? "Analyzing board photos and creating a structured lesson..."
+          : requestMode === "raw"
           ? "Transcribing audio..."
-          : mode === "clean"
+          : requestMode === "clean"
             ? "Transcribing and creating clean notes..."
             : "Transcribing and formatting LaTeX math..."
       );
@@ -550,11 +554,13 @@ export default function Home() {
 
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      if (file) {
+        formData.append("file", file);
+      }
       formData.append("password", password);
       formData.append("language", language.trim() || "en");
       formData.append("prompt", prompt.trim());
-      formData.append("mode", mode);
+      formData.append("mode", requestMode);
       formData.append("course", course.trim());
       formData.append("lectureTitle", lectureTitle.trim());
       formData.append("lectureDate", lectureDate.trim());
@@ -577,8 +583,8 @@ export default function Home() {
         course,
         lectureTitle,
         lectureDate,
-        sourceFile: file.name,
-        mode,
+        sourceFile: file?.name || "No audio file",
+        mode: requestMode,
         boardPhotoCount: boardPhotos.length
       });
       setTranscript(`${metadataBlock}${data.text || ""}`);
@@ -588,7 +594,7 @@ export default function Home() {
       setBoardUsage(data.boardUsage || null);
       setFormattingUsage(data.formattingUsage || null);
       setStage("Ready");
-      setStatus("Transcript ready.");
+      setStatus(file ? "Transcript ready." : "Photo lesson ready.");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Something went wrong.";
@@ -724,8 +730,8 @@ export default function Home() {
             <h1 id="page-title">Audio Transcriber</h1>
           </div>
           <p>
-            Upload an audio or video file, add optional hints, and edit the
-            transcript when it returns.
+            Upload audio/video, board photos, or both, then edit the generated
+            transcript or lesson.
           </p>
         </div>
 
@@ -914,7 +920,13 @@ export default function Home() {
           </details>
 
           <button className="primary" type="submit" disabled={isLoading}>
-            {isLoading ? "Transcribing..." : "Transcribe"}
+            {isLoading
+              ? selectedFile
+                ? "Transcribing..."
+                : "Creating lesson..."
+              : selectedFile
+                ? "Transcribe"
+                : "Create lesson"}
           </button>
         </form>
 

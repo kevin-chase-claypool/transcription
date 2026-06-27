@@ -74,7 +74,7 @@ function buildLectureContext({
 }) {
   return [
     "Use the lecture context below to improve recognition of terms, symbols, names, and equations.",
-    "Do not add content that is not supported by the audio.",
+    "Do not add content that is not supported by the audio, photos, or explicit user context.",
     course ? `Course: ${course}` : "",
     lectureTitle ? `Lecture title/topic: ${lectureTitle}` : "",
     lectureDate ? `Lecture date: ${lectureDate}` : "",
@@ -83,6 +83,20 @@ function buildLectureContext({
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function latexModeInstructions(mode: string) {
+  if (mode !== "latex") {
+    return "Keep math readable in plain text.";
+  }
+
+  return (
+    "Convert equations, variables, functions, matrices, fractions, " +
+    "exponents, integrals, sums, limits, derivatives, and Greek letters into " +
+    "LaTeX when the math is clear. Use inline math with \\(...\\). Put each " +
+    "standalone equation in one complete display math block, like \\[ equation \\]. " +
+    "Never put \\[, \\], \\(, or \\) on their own line."
+  );
 }
 
 async function fileToDataUrl(file: File) {
@@ -187,13 +201,6 @@ async function formatTranscript(
   context: string,
   boardContext: string
 ) {
-  const latexInstructions =
-    "Convert spoken equations, variables, functions, matrices, fractions, " +
-    "exponents, integrals, sums, limits, derivatives, and Greek letters into " +
-    "LaTeX when the math is clear. Use inline math with \\(...\\). Put each " +
-    "standalone equation in one complete display math block, like \\[ equation \\]. " +
-    "Never put \\[, \\], \\(, or \\) on their own line.";
-
   const response = await client.responses.create({
     model: process.env.OPENAI_FORMAT_MODEL || DEFAULT_MATH_FORMAT_MODEL,
     instructions: [
@@ -207,7 +214,7 @@ async function formatTranscript(
       "Use headings, short paragraphs, and bullet lists where useful.",
       "Use Markdown headings and Markdown bullet lists for document structure.",
       "Do not output LaTeX document structure commands like \\section, \\subsection, \\begin{itemize}, \\end{itemize}, or \\item.",
-      mode === "latex" ? latexInstructions : "Keep math readable in plain text.",
+      latexModeInstructions(mode),
       "Never output empty math delimiters, empty braces, or placeholder fragments such as \\{\\}, \\(\\), or \\[\\].",
       "Do not invent equations or silently fix uncertain content.",
       "If wording is ambiguous, keep the original words or mark it as unclear."
@@ -238,6 +245,54 @@ async function formatTranscript(
   };
 }
 
+async function generatePhotoLesson(
+  client: OpenAI,
+  mode: string,
+  context: string,
+  boardContext: string
+) {
+  const response = await client.responses.create({
+    model: process.env.OPENAI_FORMAT_MODEL || DEFAULT_MATH_FORMAT_MODEL,
+    instructions: [
+      "You create structured class study notes from whiteboard/photo context.",
+      "Return Markdown content only. Do not wrap the answer in a code fence.",
+      "You must include exactly these top-level Markdown headings in this order: ## Study Introduction, ## Lecture Notes, ## Study Summary.",
+      "The Study Introduction must explain the visible lesson topic and why it matters.",
+      "The Lecture Notes section must organize the visible definitions, equations, diagrams, and worked steps into a coherent lesson.",
+      "The Study Summary section must contain key ideas, formulas, definitions, and review points.",
+      "Use headings, short paragraphs, and bullet lists where useful.",
+      "Use Markdown headings and Markdown bullet lists for document structure.",
+      "Do not output LaTeX document structure commands like \\section, \\subsection, \\begin{itemize}, \\end{itemize}, or \\item.",
+      latexModeInstructions(mode),
+      "Make clear when something is inferred from the board photos rather than heard in audio.",
+      "Do not invent missing steps or equations.",
+      "Never output empty math delimiters, empty braces, or placeholder fragments such as \\{\\}, \\(\\), or \\[\\]."
+    ].join(" "),
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: [
+              context ? `Lecture context:\n${context}` : "",
+              "Whiteboard/photo context:",
+              boardContext
+            ]
+              .filter(Boolean)
+              .join("\n\n")
+          }
+        ]
+      }
+    ]
+  });
+
+  return {
+    text: cleanFormattedTranscript(response.output_text || boardContext, context),
+    usage: response.usage
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
@@ -253,20 +308,19 @@ export async function POST(request: Request) {
       .getAll("boardPhotos")
       .filter((value): value is File => value instanceof File && value.size > 0);
 
-    if (!(upload instanceof File)) {
-      return jsonError("Missing file upload.", 400);
+    const audioFile = upload instanceof File && upload.size > 0 ? upload : null;
+    const hasUpload = audioFile !== null;
+
+    if (!hasUpload && boardPhotos.length === 0) {
+      return jsonError("Choose an audio/video file or add board photos.", 400);
     }
 
-    if (upload.size === 0) {
-      return jsonError("Uploaded file is empty.", 400);
-    }
-
-    if (upload.size > MAX_FILE_BYTES) {
+    if (audioFile && audioFile.size > MAX_FILE_BYTES) {
       return jsonError("File is too large. Please upload a file under 25 MB.", 413);
     }
 
-    const extension = getExtension(upload.name);
-    if (!SUPPORTED_EXTENSIONS.has(extension)) {
+    const extension = audioFile ? getExtension(audioFile.name) : "";
+    if (audioFile && !SUPPORTED_EXTENSIONS.has(extension)) {
       return jsonError(
         "Unsupported file type. Please upload MP3, WAV, M4A, MP4, MPEG, WEBM, or OGG.",
         400
@@ -323,31 +377,40 @@ export async function POST(request: Request) {
     }
 
     const boardAnalysis =
-      mode === "clean" || mode === "latex"
+      mode === "clean" || mode === "latex" || !audioFile
         ? await analyzeBoardPhotos(client, boardPhotos, lectureContext)
         : null;
 
-    const transcription = await client.audio.transcriptions.create({
-      model: "gpt-4o-transcribe",
-      file: upload,
-      language,
-      prompt: lectureContext || undefined
-    });
-
-    const formatted = mode === "clean" || mode === "latex"
-      ? await formatTranscript(
-          client,
-          transcription.text,
-          mode,
-          lectureContext,
-          boardAnalysis?.text || ""
-        )
+    const transcription = audioFile
+      ? await client.audio.transcriptions.create({
+          model: "gpt-4o-transcribe",
+          file: audioFile,
+          language,
+          prompt: lectureContext || undefined
+        })
       : null;
 
+    const formatted = transcription
+      ? mode === "clean" || mode === "latex"
+        ? await formatTranscript(
+            client,
+            transcription.text,
+            mode,
+            lectureContext,
+            boardAnalysis?.text || ""
+          )
+        : null
+      : await generatePhotoLesson(
+          client,
+          mode === "latex" ? "latex" : "clean",
+          lectureContext,
+          boardAnalysis?.text || ""
+        );
+
     return Response.json({
-      text: formatted?.text || transcription.text,
-      rawText: mode === "raw" ? undefined : transcription.text,
-      usage: transcription.usage,
+      text: formatted?.text || transcription?.text || "",
+      rawText: !transcription || mode === "raw" ? undefined : transcription.text,
+      usage: transcription?.usage || null,
       boardContext: boardAnalysis?.text || "",
       boardUsage: boardAnalysis?.usage || null,
       formattingUsage: formatted?.usage || null
