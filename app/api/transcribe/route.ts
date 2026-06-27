@@ -53,11 +53,41 @@ function checkRateLimit(key: string) {
   return null;
 }
 
+function stringValue(value: FormDataEntryValue | null) {
+  return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function buildLectureContext({
+  course,
+  lectureTitle,
+  lectureDate,
+  mode,
+  hints
+}: {
+  course: string;
+  lectureTitle: string;
+  lectureDate: string;
+  mode: string;
+  hints: string;
+}) {
+  return [
+    "Use the lecture context below to improve recognition of terms, symbols, names, and equations.",
+    "Do not add content that is not supported by the audio.",
+    course ? `Course: ${course}` : "",
+    lectureTitle ? `Lecture title/topic: ${lectureTitle}` : "",
+    lectureDate ? `Lecture date: ${lectureDate}` : "",
+    `Requested output mode: ${mode}`,
+    hints ? `Vocabulary, names, places, jargon, or context:\n${hints}` : ""
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 async function formatTranscript(
   client: OpenAI,
   transcript: string,
   mode: string,
-  hints?: string
+  context: string
 ) {
   const latexInstructions =
     "Convert spoken equations, variables, functions, matrices, fractions, " +
@@ -82,7 +112,7 @@ async function formatTranscript(
           {
             type: "input_text",
             text: [
-              hints ? `Class hints and vocabulary:\n${hints}` : "",
+              context ? `Lecture context:\n${context}` : "",
               "Raw transcript:",
               transcript
             ]
@@ -108,6 +138,9 @@ export async function POST(request: Request) {
     const promptValue = formData.get("prompt");
     const modeValue = formData.get("mode");
     const passwordValue = formData.get("password");
+    const courseValue = formData.get("course");
+    const lectureTitleValue = formData.get("lectureTitle");
+    const lectureDateValue = formData.get("lectureDate");
 
     if (!(upload instanceof File)) {
       return jsonError("Missing file upload.", 400);
@@ -151,12 +184,15 @@ export async function POST(request: Request) {
       typeof languageValue === "string" && languageValue.trim()
         ? languageValue.trim()
         : "en";
-    const prompt =
-      typeof promptValue === "string" && promptValue.trim()
-        ? promptValue.trim()
-        : undefined;
     const mode =
       modeValue === "clean" || modeValue === "latex" ? modeValue : "raw";
+    const lectureContext = buildLectureContext({
+      course: stringValue(courseValue),
+      lectureTitle: stringValue(lectureTitleValue),
+      lectureDate: stringValue(lectureDateValue),
+      mode,
+      hints: stringValue(promptValue)
+    });
 
     const client = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY
@@ -166,11 +202,11 @@ export async function POST(request: Request) {
       model: "gpt-4o-transcribe",
       file: upload,
       language,
-      prompt
+      prompt: lectureContext || undefined
     });
 
     const formatted = mode === "clean" || mode === "latex"
-      ? await formatTranscript(client, transcription.text, mode, prompt)
+      ? await formatTranscript(client, transcription.text, mode, lectureContext)
       : null;
 
     return Response.json({

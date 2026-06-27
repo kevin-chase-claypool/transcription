@@ -275,6 +275,9 @@ export default function Home() {
       formData.append("language", language.trim() || "en");
       formData.append("prompt", prompt.trim());
       formData.append("mode", mode);
+      formData.append("course", course.trim());
+      formData.append("lectureTitle", lectureTitle.trim());
+      formData.append("lectureDate", lectureDate.trim());
 
       const response = await fetch("/api/transcribe", {
         method: "POST",
@@ -506,11 +509,11 @@ export default function Home() {
           </label>
 
           <label className="field prompt-field">
-            <span>Prompt or hints</span>
+            <span>Lecture context and vocabulary</span>
             <textarea
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Names, jargon, places, vocabulary..."
+              placeholder="Names, theorem names, symbols, textbook section, vocabulary..."
               rows={2}
               disabled={isLoading}
             />
