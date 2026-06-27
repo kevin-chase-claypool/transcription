@@ -12,6 +12,7 @@ The `APP_PASSWORD` environment variable protects the transcription endpoint from
 - Optional "remember on this device" app-password storage in the browser.
 - File size display before upload, with the 25 MB limit shown early.
 - Course, lecture title, and date fields for generated LaTeX exports.
+- Searchable metadata block at the top of every generated transcript.
 - Optional language field, defaulting to `en`.
 - Optional prompt/hints field for names, jargon, places, or vocabulary.
 - Transcript modes for raw transcript, clean notes, or LaTeX math notes.
@@ -75,3 +76,5 @@ OpenAI file uploads for this transcription route are limited to 25 MB, so this a
 The "Clean notes" and "LaTeX math" modes make a second OpenAI API call after transcription. That second call can improve class notes, but it adds token usage and cost. The app shows formatting token usage separately when OpenAI returns it.
 
 The "Open in Overleaf" button posts the generated LaTeX document to Overleaf's official `https://www.overleaf.com/docs` import endpoint. Overleaf handles project creation and PDF compilation after the new tab opens.
+
+Each generated transcript starts with a metadata block containing the course, lecture title, lecture date, source file, transcript mode, and created timestamp. This metadata is included when copying, downloading `.txt`, downloading `.tex`, or opening the document in Overleaf, so later searches can find the lecture by class or topic.

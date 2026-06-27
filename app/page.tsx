@@ -130,6 +130,26 @@ function formatFileSize(bytes: number) {
   return `${megabytes.toFixed(2)} MB`;
 }
 
+function buildTranscriptMetadata(metadata: {
+  course: string;
+  lectureTitle: string;
+  lectureDate: string;
+  sourceFile?: string;
+  mode: TranscriptMode;
+}) {
+  const rows = [
+    "Transcript Metadata",
+    `Course: ${metadata.course.trim() || "Not specified"}`,
+    `Lecture Title: ${metadata.lectureTitle.trim() || "Not specified"}`,
+    `Lecture Date: ${metadata.lectureDate.trim() || "Not specified"}`,
+    `Source File: ${metadata.sourceFile || "Not specified"}`,
+    `Transcript Mode: ${metadata.mode}`,
+    `Created: ${new Date().toLocaleString()}`
+  ];
+
+  return `${rows.join("\n")}\n\n---\n\n`;
+}
+
 function buildTexDocument(
   transcript: string,
   metadata: { course: string; lectureTitle: string; lectureDate: string }
@@ -267,7 +287,14 @@ export default function Home() {
         throw new Error(data.error || "Transcription failed.");
       }
 
-      setTranscript(data.text || "");
+      const metadataBlock = buildTranscriptMetadata({
+        course,
+        lectureTitle,
+        lectureDate,
+        sourceFile: file.name,
+        mode
+      });
+      setTranscript(`${metadataBlock}${data.text || ""}`);
       setRawTranscript(data.rawText || "");
       setUsage(data.usage || null);
       setFormattingUsage(data.formattingUsage || null);
