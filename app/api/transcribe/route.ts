@@ -100,6 +100,9 @@ async function formatTranscript(
     instructions: [
       "You convert raw class transcripts into clean Markdown notes.",
       "Preserve the speaker's meaning and order.",
+      "Begin with a concise 'Study Introduction' section that previews the lecture topic and why it matters.",
+      "After the introduction, include the main lecture transcript or notes in logical order.",
+      "End with a 'Study Summary' section containing key ideas, formulas, definitions, and likely review points.",
       "Use headings, short paragraphs, and bullet lists where useful.",
       mode === "latex" ? latexInstructions : "Keep math readable in plain text.",
       "Do not invent equations or silently fix uncertain content.",

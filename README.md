@@ -16,6 +16,7 @@ The `APP_PASSWORD` environment variable protects the transcription endpoint from
 - Optional language field, defaulting to `en`.
 - Optional lecture context field for names, theorem names, symbols, jargon, places, or vocabulary.
 - Transcript modes for raw transcript, clean notes, or LaTeX math notes.
+- Clean notes and LaTeX math modes add a study introduction and end-of-transcript study summary.
 - Staged status display for upload, transcription, formatting, and ready states.
 - Editable transcript textarea.
 - Copy transcript button.
@@ -73,7 +74,7 @@ Do not commit `.env`, `.env.local`, or any real API key to GitHub.
 
 OpenAI file uploads for this transcription route are limited to 25 MB, so this app rejects larger files before calling the API. Low-bitrate MP3s such as 48 kbps can work, but transcription accuracy may be lower if the audio is noisy, distorted, or hard to hear.
 
-The "Clean notes" and "LaTeX math" modes make a second OpenAI API call after transcription. That second call can improve class notes, but it adds token usage and cost. The app shows formatting token usage separately when OpenAI returns it.
+The "Clean notes" and "LaTeX math" modes make a second OpenAI API call after transcription. That second call can improve class notes, add a study introduction, and add an end-of-transcript study summary, but it adds token usage and cost. The app shows formatting token usage separately when OpenAI returns it.
 
 The "Open in Overleaf" button posts the generated LaTeX document to Overleaf's official `https://www.overleaf.com/docs` import endpoint. Overleaf handles project creation and PDF compilation after the new tab opens.
 
