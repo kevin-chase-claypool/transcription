@@ -1,6 +1,7 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import katex from "katex";
+import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 
 type TranscribeResponse = {
   text?: string;
@@ -67,6 +68,8 @@ type ArchiveResponse = {
   error?: string;
 };
 
+type AppTab = "create" | "archive";
+
 const ACCEPTED_FORMATS = ".mp3,.wav,.m4a,.mp4,.mpeg,.webm,.ogg,audio/*,video/*";
 const ACCEPTED_IMAGE_FORMATS = "image/*";
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
@@ -116,6 +119,161 @@ function formatTokenUsage(usage: FormattingUsage | null) {
     `${usage.input_tokens.toLocaleString()} input`,
     `${usage.output_tokens.toLocaleString()} output`
   ].join(" • ");
+}
+
+function escapeHtml(text: string) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function renderInlineMath(text: string) {
+  const parts = text.split(/(\\\([\s\S]*?\\\))/g);
+
+  return parts
+    .map((part) => {
+      const inlineMath = part.match(/^\\\(([\s\S]*?)\\\)$/);
+
+      if (!inlineMath) {
+        return escapeHtml(part);
+      }
+
+      try {
+        return katex.renderToString(inlineMath[1], {
+          displayMode: false,
+          throwOnError: false
+        });
+      } catch {
+        return escapeHtml(part);
+      }
+    })
+    .join("");
+}
+
+function renderDisplayMath(math: string) {
+  try {
+    return katex.renderToString(math, {
+      displayMode: true,
+      throwOnError: false
+    });
+  } catch {
+    return `<pre>${escapeHtml(math)}</pre>`;
+  }
+}
+
+function MarkdownMathPreview({ text }: { text: string }) {
+  const lines = text.trim().split(/\r?\n/);
+  const nodes: ReactNode[] = [];
+  let listItems: string[] = [];
+  let displayMath: string[] = [];
+  let inDisplayMath = false;
+
+  function flushList() {
+    if (!listItems.length) {
+      return;
+    }
+
+    nodes.push(
+      <ul key={`list-${nodes.length}`}>
+        {listItems.map((item, index) => (
+          <li
+            key={`${item}-${index}`}
+            dangerouslySetInnerHTML={{ __html: renderInlineMath(item) }}
+          />
+        ))}
+      </ul>
+    );
+    listItems = [];
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+
+    if (line.startsWith("\\[") && line.endsWith("\\]") && line.length > 4) {
+      flushList();
+      nodes.push(
+        <div
+          className="math-block"
+          key={`math-${nodes.length}`}
+          dangerouslySetInnerHTML={{
+            __html: renderDisplayMath(line.slice(2, -2).trim())
+          }}
+        />
+      );
+      continue;
+    }
+
+    if (line === "\\[") {
+      flushList();
+      inDisplayMath = true;
+      displayMath = [];
+      continue;
+    }
+
+    if (line === "\\]" && inDisplayMath) {
+      nodes.push(
+        <div
+          className="math-block"
+          key={`math-${nodes.length}`}
+          dangerouslySetInnerHTML={{
+            __html: renderDisplayMath(displayMath.join("\n"))
+          }}
+        />
+      );
+      inDisplayMath = false;
+      displayMath = [];
+      continue;
+    }
+
+    if (inDisplayMath) {
+      displayMath.push(rawLine);
+      continue;
+    }
+
+    if (!line) {
+      flushList();
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      flushList();
+      const level = heading[1].length;
+      const Tag = level === 1 ? "h2" : level === 2 ? "h3" : "h4";
+      nodes.push(
+        <Tag
+          key={`heading-${nodes.length}`}
+          dangerouslySetInnerHTML={{
+            __html: renderInlineMath(stripMarkdownMarks(heading[2]))
+          }}
+        />
+      );
+      continue;
+    }
+
+    const bullet = line.match(/^[-*]\s+(.+)$/);
+    if (bullet) {
+      listItems.push(stripMarkdownMarks(bullet[1]));
+      continue;
+    }
+
+    flushList();
+    nodes.push(
+      <p
+        key={`p-${nodes.length}`}
+        dangerouslySetInnerHTML={{
+          __html: renderInlineMath(stripMarkdownMarks(line))
+        }}
+      />
+    );
+  }
+
+  flushList();
+
+  return <div className="rendered-notes">{nodes}</div>;
 }
 
 function escapeLatexText(text: string) {
@@ -471,7 +629,10 @@ export default function Home() {
   const [boardUsage, setBoardUsage] = useState<FormattingUsage | null>(null);
   const [formattingUsage, setFormattingUsage] =
     useState<FormattingUsage | null>(null);
+  const [activeTab, setActiveTab] = useState<AppTab>("create");
   const [archiveLectures, setArchiveLectures] = useState<ArchiveLecture[]>([]);
+  const [selectedArchiveLecture, setSelectedArchiveLecture] =
+    useState<ArchiveLecture | null>(null);
   const [archiveStatus, setArchiveStatus] = useState("");
   const [isArchiveLoading, setIsArchiveLoading] = useState(false);
   const [status, setStatus] = useState("");
@@ -792,6 +953,7 @@ export default function Home() {
       }
 
       setArchiveLectures(data.lectures || []);
+      setSelectedArchiveLecture(data.lectures?.[0] || null);
       setArchiveStatus(
         `${data.lectures?.length || 0} saved lecture${
           data.lectures?.length === 1 ? "" : "s"
@@ -836,6 +998,7 @@ export default function Home() {
     setFormattingUsage(null);
     setStage("Ready");
     setStatus("Archived lecture opened.");
+    setActiveTab("create");
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -849,6 +1012,28 @@ export default function Home() {
       lecture.source_file ||
       "Untitled lecture"
     );
+  }
+
+  function groupedArchive() {
+    const groups = new Map<string, Map<string, ArchiveLecture[]>>();
+
+    for (const lecture of archiveLectures) {
+      const courseName = lecture.course || "Unfiled";
+      const dateName = lecture.lecture_date || "No date";
+
+      if (!groups.has(courseName)) {
+        groups.set(courseName, new Map());
+      }
+
+      const courseGroup = groups.get(courseName);
+      if (!courseGroup?.has(dateName)) {
+        courseGroup?.set(dateName, []);
+      }
+
+      courseGroup?.get(dateName)?.push(lecture);
+    }
+
+    return Array.from(groups.entries());
   }
 
   return (
@@ -865,6 +1050,35 @@ export default function Home() {
           </p>
         </div>
 
+        <div className="top-tabs" role="tablist" aria-label="App sections">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "create"}
+            className={activeTab === "create" ? "active" : ""}
+            onClick={() => setActiveTab("create")}
+          >
+            Create
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "archive"}
+            className={activeTab === "archive" ? "active" : ""}
+            onClick={() => {
+              setActiveTab("archive");
+
+              if (!archiveLectures.length && !isArchiveLoading) {
+                void loadArchive();
+              }
+            }}
+          >
+            Archive
+          </button>
+        </div>
+
+        {activeTab === "create" ? (
+          <>
         <form className="form" onSubmit={handleSubmit}>
           <div className="form-actions">
             <button
@@ -1076,44 +1290,6 @@ export default function Home() {
           {status || "Ready."}
         </p>
 
-        <details className="archive-panel">
-          <summary>Lecture archive</summary>
-          <div className="archive-toolbar">
-            <button
-              className="secondary"
-              type="button"
-              onClick={loadArchive}
-              disabled={isArchiveLoading}
-            >
-              {isArchiveLoading ? "Loading..." : "Load saved lectures"}
-            </button>
-            <span>{archiveStatus || "Saved lectures will appear here."}</span>
-          </div>
-
-          {archiveLectures.length ? (
-            <div className="archive-list">
-              {archiveLectures.map((lecture) => (
-                <button
-                  type="button"
-                  key={lecture.id}
-                  onClick={() => openArchivedLecture(lecture)}
-                >
-                  <strong>{archiveTitle(lecture)}</strong>
-                  <span>
-                    {[lecture.course, lecture.lecture_date]
-                      .filter(Boolean)
-                      .join(" • ") || "No course/date"}
-                  </span>
-                  <span>
-                    {lecture.board_photo_count || 0} board photo
-                    {lecture.board_photo_count === 1 ? "" : "s"}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </details>
-
         {usage || boardUsage || formattingUsage ? (
           <details className="usage-details">
             <summary>Usage details</summary>
@@ -1182,6 +1358,127 @@ export default function Home() {
             <textarea value={rawTranscript} readOnly rows={8} />
           </details>
         ) : null}
+          </>
+        ) : (
+          <section className="archive-workspace" aria-label="Lecture archive">
+            <div className="archive-header">
+              <button
+                className="secondary"
+                type="button"
+                onClick={loadArchive}
+                disabled={isArchiveLoading}
+              >
+                {isArchiveLoading ? "Loading..." : "Load saved lectures"}
+              </button>
+              <span>{archiveStatus || "Load saved lectures to browse by course."}</span>
+            </div>
+
+            <div className="archive-grid">
+              <aside className="archive-tree" aria-label="Saved lecture tree">
+                {archiveLectures.length ? (
+                  groupedArchive().map(([courseName, dateGroups]) => (
+                    <details key={courseName} open>
+                      <summary>{courseName}</summary>
+                      {Array.from(dateGroups.entries()).map(
+                        ([dateName, lectures]) => (
+                          <details key={`${courseName}-${dateName}`} open>
+                            <summary>{dateName}</summary>
+                            <div className="archive-tree-items">
+                              {lectures.map((lecture) => (
+                                <button
+                                  type="button"
+                                  key={lecture.id}
+                                  className={
+                                    selectedArchiveLecture?.id === lecture.id
+                                      ? "active"
+                                      : ""
+                                  }
+                                  onClick={() =>
+                                    setSelectedArchiveLecture(lecture)
+                                  }
+                                >
+                                  {archiveTitle(lecture)}
+                                </button>
+                              ))}
+                            </div>
+                          </details>
+                        )
+                      )}
+                    </details>
+                  ))
+                ) : (
+                  <p className="empty-archive">No saved lectures loaded.</p>
+                )}
+              </aside>
+
+              <section className="archive-viewer" aria-label="Selected lecture">
+                {selectedArchiveLecture ? (
+                  <>
+                    <div className="archive-viewer-header">
+                      <div>
+                        <h2>{archiveTitle(selectedArchiveLecture)}</h2>
+                        <p>
+                          {[
+                            selectedArchiveLecture.course,
+                            selectedArchiveLecture.lecture_date,
+                            selectedArchiveLecture.transcript_mode
+                          ]
+                            .filter(Boolean)
+                            .join(" • ")}
+                        </p>
+                      </div>
+                      <button
+                        className="secondary"
+                        type="button"
+                        onClick={() => openArchivedLecture(selectedArchiveLecture)}
+                      >
+                        Open in editor
+                      </button>
+                    </div>
+
+                    {selectedArchiveLecture.assetUrls?.length ? (
+                      <div className="archive-images">
+                        {selectedArchiveLecture.assetUrls.map((asset, index) =>
+                          asset.url ? (
+                            <a
+                              href={asset.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              key={asset.path}
+                            >
+                              <img
+                                src={asset.url}
+                                alt={`Board photo ${index + 1}`}
+                              />
+                              <span>Fig. {index + 1}</span>
+                            </a>
+                          ) : null
+                        )}
+                      </div>
+                    ) : null}
+
+                    <MarkdownMathPreview
+                      text={selectedArchiveLecture.transcript || ""}
+                    />
+
+                    <details className="archive-source">
+                      <summary>Markdown / LaTeX source</summary>
+                      <textarea
+                        value={selectedArchiveLecture.transcript || ""}
+                        readOnly
+                        rows={10}
+                      />
+                    </details>
+                  </>
+                ) : (
+                  <p className="empty-archive">
+                    Select a saved lecture to view rendered notes.
+                  </p>
+                )}
+              </section>
+            </div>
+          </section>
+        )}
       </section>
     </main>
   );
