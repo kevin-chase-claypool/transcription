@@ -259,7 +259,18 @@ function transcriptToLatexBody(transcript: string) {
     output.push("\\end{itemize}");
   }
 
-  return output.join("\n").replace(/\n{3,}/g, "\n\n");
+  return cleanLatexBody(output.join("\n"));
+}
+
+function cleanLatexBody(body: string) {
+  return body
+    .replace(/\\textbackslash\{\\\}\\\{\\\}/g, "")
+    .replace(/\\textbackslash\{\}\\\{\\\}/g, "")
+    .replace(/\\textbackslash\{\}\\\{\\textbackslash\{\}\\\}/g, "")
+    .replace(/\\\{\\\}/g, "")
+    .replace(/\\\{\}/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n");
 }
 
 function validateLatexDelimiters(text: string) {
