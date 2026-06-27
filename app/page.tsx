@@ -123,7 +123,9 @@ function normalizeLatexStructure(text: string) {
     .replace(/\\\{\}end\{itemize\}/g, "\\end{itemize}")
     .replace(/\\textbackslash\{\}end\{itemize\}/g, "\\end{itemize}")
     .replace(/\\\{\}item\b/g, "\\item")
-    .replace(/\\textbackslash\{\}item\b/g, "\\item");
+    .replace(/\\textbackslash\{\}item\b/g, "\\item")
+    .replace(/\\\{\}/g, "")
+    .replace(/\\textbackslash\{\}/g, "");
 }
 
 function normalizeBareMathSyntax(text: string) {

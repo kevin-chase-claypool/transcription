@@ -107,6 +107,7 @@ async function formatTranscript(
       "Use Markdown headings and Markdown bullet lists for document structure.",
       "Do not output LaTeX document structure commands like \\section, \\subsection, \\begin{itemize}, \\end{itemize}, or \\item.",
       mode === "latex" ? latexInstructions : "Keep math readable in plain text.",
+      "Never output empty math delimiters, empty braces, or placeholder fragments such as \\{\\}, \\(\\), or \\[\\].",
       "Do not invent equations or silently fix uncertain content.",
       "If wording is ambiguous, keep the original words or mark it as unclear."
     ].join(" "),
