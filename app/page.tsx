@@ -169,7 +169,8 @@ function looksLikeBareMath(line: string) {
     ) || []
   ).length;
   const operatorCount = (trimmed.match(/[=^_+\-*/]/g) || []).length;
-  const wordCount = (trimmed.match(/[A-Za-z]{3,}/g) || []).length;
+  const textWithoutCommands = trimmed.replace(/\\[A-Za-z]+/g, "");
+  const wordCount = (textWithoutCommands.match(/[A-Za-z]{3,}/g) || []).length;
 
   return mathCommandCount > 0 && operatorCount > 0 && wordCount <= 3;
 }
