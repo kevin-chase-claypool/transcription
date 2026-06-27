@@ -156,6 +156,9 @@ function isEmptyLatexArtifactLine(line: string) {
   return [
     "",
     "\\",
+    "[",
+    "]",
+    "[]",
     "{}",
     "\\(\\)",
     "\\[\\]",
@@ -271,6 +274,8 @@ function cleanLatexBody(body: string) {
     .replace(/\s+(?:\\textbackslash\{\\\}\\\{\\\}|\\textbackslash\{\}\\\{\\\}|\\textbackslash\{\}|\\\{\\\}|\\\{\}|\{\\\}|\{\})+(?=\s|$)/g, " ")
     .replace(/\\textbackslash\{\}/g, "")
     .replace(/\\textbackslash/g, "")
+    .replace(/(^|\n)\s*[\[\]]+\s*/g, "$1")
+    .replace(/\s+[\[\]]+(?=\s|$)/g, " ")
     .replace(/\\?\{\\?\}/g, "")
     .replace(/\\\{\\\}/g, "")
     .replace(/\\\{\}/g, "")
