@@ -232,6 +232,7 @@ textarea {
 }
 
 .advanced,
+.archive-panel,
 .usage-details {
   min-width: 0;
   border: 1px solid var(--border);
@@ -240,6 +241,7 @@ textarea {
 }
 
 .advanced summary,
+.archive-panel summary,
 .usage-details summary {
   min-height: 36px;
   padding: 8px 10px;
@@ -254,6 +256,57 @@ textarea {
   grid-template-columns: 110px minmax(0, 1fr);
   gap: 8px;
   padding: 0 10px 10px;
+}
+
+.archive-toolbar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 0 10px 10px;
+}
+
+.archive-toolbar span {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.3;
+}
+
+.archive-list {
+  display: grid;
+  gap: 6px;
+  max-height: 220px;
+  overflow: auto;
+  padding: 0 10px 10px;
+}
+
+.archive-list button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #ffffff;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.archive-list button:hover {
+  border-color: var(--primary);
+  background: #f2f7fd;
+}
+
+.archive-list strong {
+  font-size: 0.9rem;
+}
+
+.archive-list span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.25;
 }
 
 .board-panel {
@@ -498,6 +551,10 @@ textarea:disabled {
   }
 
   .advanced-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .archive-toolbar {
     grid-template-columns: minmax(0, 1fr);
   }
 

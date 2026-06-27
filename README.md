@@ -14,6 +14,7 @@ The `APP_PASSWORD` environment variable protects the transcription endpoint from
 - Course, lecture title, and date fields that guide transcription and generated LaTeX exports.
 - Optional board-photo uploads so whiteboard equations and diagrams can augment clean notes and LaTeX output.
 - Photo-only lesson generation when no audio recording is available.
+- Optional Supabase lecture archive for saved notes, board images, and later reload/search workflows.
 - Searchable metadata block at the top of every generated transcript.
 - Optional language field, defaulting to `en`.
 - Optional lecture context field for names, theorem names, symbols, jargon, places, or vocabulary.
@@ -52,6 +53,10 @@ OPENAI_API_KEY=sk-your_key_here
 APP_PASSWORD=choose-a-private-password
 OPENAI_FORMAT_MODEL=gpt-4.1-mini
 OPENAI_VISION_MODEL=gpt-4.1-mini
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-key
+SUPABASE_SERVICE_ROLE_KEY=your-secret-key
+SUPABASE_STORAGE_BUCKET=lecture-assets
 ```
 
 Start the development server:
@@ -71,9 +76,34 @@ Open the local URL printed by Next.js, usually `http://localhost:3000`.
 5. Add `APP_PASSWORD` as a Vercel environment variable to prevent public use of your API credits.
 6. Optionally add `OPENAI_FORMAT_MODEL` if you want to override the default `gpt-4.1-mini` math-formatting model.
 7. Optionally add `OPENAI_VISION_MODEL` if you want to override the default `gpt-4.1-mini` board-photo analysis model.
-8. Deploy the project.
+8. Optionally add Supabase archive variables:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `SUPABASE_STORAGE_BUCKET`
+9. Deploy the project.
 
 Do not commit `.env`, `.env.local`, or any real API key to GitHub.
+
+## Supabase Archive Setup
+
+The app can run without Supabase, but saved lecture archive features require a Supabase project.
+
+1. Create a private storage bucket named `lecture-assets`.
+2. Open Supabase SQL Editor.
+3. Run the SQL in `supabase-schema.sql`.
+4. Add these Vercel environment variables:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-publishable-key
+SUPABASE_SERVICE_ROLE_KEY=your-secret-key
+SUPABASE_STORAGE_BUCKET=lecture-assets
+```
+
+The service role key is server-only. Never commit it to GitHub and never expose it in browser code.
+
+When Supabase is configured, successful transcriptions/photo lessons are saved automatically. The in-app "Lecture archive" panel can reload recent saved lectures and creates temporary signed URLs for private board images.
 
 ## Notes
 

@@ -1,4 +1,11 @@
 import OpenAI from "openai";
+import {
+  getArchiveBucket,
+  getSupabaseAdmin,
+  isSupabaseArchiveConfigured,
+  slugify,
+  type LectureAsset
+} from "../../supabase-server";
 
 export const runtime = "nodejs";
 
@@ -57,6 +64,17 @@ function checkRateLimit(key: string) {
 
 function stringValue(value: FormDataEntryValue | null) {
   return typeof value === "string" && value.trim() ? value.trim() : "";
+}
+
+function dateSegment(value: string) {
+  return value || new Date().toISOString().slice(0, 10);
+}
+
+function safeFileName(value: string, fallback: string) {
+  const extension = value.includes(".") ? value.split(".").pop() : "";
+  const base = value.replace(/\.[^.]+$/, "");
+  const slug = slugify(base || fallback);
+  return extension ? `${slug}.${extension.toLowerCase()}` : slug;
 }
 
 function buildLectureContext({
@@ -293,6 +311,125 @@ async function generatePhotoLesson(
   };
 }
 
+async function uploadLectureAssets({
+  photos,
+  course,
+  lectureTitle,
+  lectureDate
+}: {
+  photos: File[];
+  course: string;
+  lectureTitle: string;
+  lectureDate: string;
+}) {
+  if (!isSupabaseArchiveConfigured() || !photos.length) {
+    return [];
+  }
+
+  const supabase = getSupabaseAdmin();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const bucket = getArchiveBucket();
+  const lectureSlug = slugify(
+    [course, lectureTitle].filter(Boolean).join(" ") || "lecture"
+  );
+  const root = `${dateSegment(lectureDate)}/${lectureSlug}-${Date.now()}`;
+  const assets: LectureAsset[] = [];
+
+  for (const [index, photo] of photos.entries()) {
+    const filename = safeFileName(
+      photo.name,
+      `board-${String(index + 1).padStart(2, "0")}.jpg`
+    );
+    const path = `${root}/${String(index + 1).padStart(2, "0")}-${filename}`;
+    const { error } = await supabase.storage.from(bucket).upload(path, photo, {
+      contentType: photo.type || "image/jpeg",
+      upsert: false
+    });
+
+    if (error) {
+      throw new Error(`Could not save board photo: ${error.message}`);
+    }
+
+    assets.push({
+      name: photo.name || filename,
+      path,
+      type: photo.type || "image/jpeg"
+    });
+  }
+
+  return assets;
+}
+
+async function saveLecture({
+  course,
+  lectureTitle,
+  lectureDate,
+  sourceFile,
+  mode,
+  transcript,
+  rawTranscript,
+  boardContext,
+  boardPhotoCount,
+  assets,
+  usage,
+  boardUsage,
+  formattingUsage
+}: {
+  course: string;
+  lectureTitle: string;
+  lectureDate: string;
+  sourceFile: string;
+  mode: string;
+  transcript: string;
+  rawTranscript: string;
+  boardContext: string;
+  boardPhotoCount: number;
+  assets: LectureAsset[];
+  usage: unknown;
+  boardUsage: unknown;
+  formattingUsage: unknown;
+}) {
+  if (!isSupabaseArchiveConfigured()) {
+    return null;
+  }
+
+  const supabase = getSupabaseAdmin();
+
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("lectures")
+    .insert({
+      course,
+      lecture_title: lectureTitle,
+      lecture_date: lectureDate || null,
+      source_file: sourceFile,
+      transcript_mode: mode,
+      transcript,
+      raw_transcript: rawTranscript,
+      board_context: boardContext,
+      board_photo_count: boardPhotoCount,
+      assets,
+      usage,
+      board_usage: boardUsage,
+      formatting_usage: formattingUsage
+    })
+    .select("id, created_at")
+    .single();
+
+  if (error) {
+    throw new Error(`Could not save lecture archive: ${error.message}`);
+  }
+
+  return data;
+}
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
@@ -351,10 +488,13 @@ export async function POST(request: Request) {
         : "en";
     const mode =
       modeValue === "clean" || modeValue === "latex" ? modeValue : "raw";
+    const course = stringValue(courseValue);
+    const lectureTitle = stringValue(lectureTitleValue);
+    const lectureDate = stringValue(lectureDateValue);
     const lectureContext = buildLectureContext({
-      course: stringValue(courseValue),
-      lectureTitle: stringValue(lectureTitleValue),
-      lectureDate: stringValue(lectureDateValue),
+      course,
+      lectureTitle,
+      lectureDate,
       mode,
       hints: stringValue(promptValue)
     });
@@ -406,14 +546,38 @@ export async function POST(request: Request) {
           lectureContext,
           boardAnalysis?.text || ""
         );
+    const finalText = formatted?.text || transcription?.text || "";
+    const rawText = transcription && mode !== "raw" ? transcription.text : "";
+    const savedAssets = await uploadLectureAssets({
+      photos: boardPhotos,
+      course,
+      lectureTitle,
+      lectureDate
+    });
+    const savedLecture = await saveLecture({
+      course,
+      lectureTitle,
+      lectureDate,
+      sourceFile: audioFile?.name || "No audio file",
+      mode: transcription ? mode : mode === "latex" ? "latex" : "clean",
+      transcript: finalText,
+      rawTranscript: rawText,
+      boardContext: boardAnalysis?.text || "",
+      boardPhotoCount: boardPhotos.length,
+      assets: savedAssets,
+      usage: transcription?.usage || null,
+      boardUsage: boardAnalysis?.usage || null,
+      formattingUsage: formatted?.usage || null
+    });
 
     return Response.json({
-      text: formatted?.text || transcription?.text || "",
-      rawText: !transcription || mode === "raw" ? undefined : transcription.text,
+      text: finalText,
+      rawText: rawText || undefined,
       usage: transcription?.usage || null,
       boardContext: boardAnalysis?.text || "",
       boardUsage: boardAnalysis?.usage || null,
-      formattingUsage: formatted?.usage || null
+      formattingUsage: formatted?.usage || null,
+      savedLecture
     });
   } catch (error) {
     const message =

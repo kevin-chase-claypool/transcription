@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.108.2",
     "next": "^15.3.4",
     "openai": "^5.8.2",
     "react": "^19.0.0",

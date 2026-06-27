@@ -9,6 +9,10 @@ type TranscribeResponse = {
   boardContext?: string;
   boardUsage?: FormattingUsage | null;
   formattingUsage?: FormattingUsage | null;
+  savedLecture?: {
+    id: string;
+    created_at: string;
+  } | null;
   error?: string;
 };
 
@@ -32,6 +36,34 @@ type FormattingUsage = {
   input_tokens: number;
   output_tokens: number;
   total_tokens: number;
+};
+
+type ArchiveAsset = {
+  name: string;
+  path: string;
+  type: string;
+  url?: string;
+};
+
+type ArchiveLecture = {
+  id: string;
+  created_at: string;
+  course: string;
+  lecture_title: string;
+  lecture_date: string;
+  source_file: string;
+  transcript_mode: TranscriptMode;
+  transcript: string;
+  raw_transcript: string;
+  board_context: string;
+  board_photo_count: number;
+  assetUrls: ArchiveAsset[];
+};
+
+type ArchiveResponse = {
+  lectures?: ArchiveLecture[];
+  archiveEnabled?: boolean;
+  error?: string;
 };
 
 const ACCEPTED_FORMATS = ".mp3,.wav,.m4a,.mp4,.mpeg,.webm,.ogg,audio/*,video/*";
@@ -438,6 +470,9 @@ export default function Home() {
   const [boardUsage, setBoardUsage] = useState<FormattingUsage | null>(null);
   const [formattingUsage, setFormattingUsage] =
     useState<FormattingUsage | null>(null);
+  const [archiveLectures, setArchiveLectures] = useState<ArchiveLecture[]>([]);
+  const [archiveStatus, setArchiveStatus] = useState("");
+  const [isArchiveLoading, setIsArchiveLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [stage, setStage] = useState("Ready");
   const [isLoading, setIsLoading] = useState(false);
@@ -594,7 +629,15 @@ export default function Home() {
       setBoardUsage(data.boardUsage || null);
       setFormattingUsage(data.formattingUsage || null);
       setStage("Ready");
-      setStatus(file ? "Transcript ready." : "Photo lesson ready.");
+      setStatus(
+        data.savedLecture
+          ? file
+            ? "Transcript ready and saved."
+            : "Photo lesson ready and saved."
+          : file
+            ? "Transcript ready."
+            : "Photo lesson ready."
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Something went wrong.";
@@ -719,6 +762,88 @@ export default function Home() {
     if (boardPhotoInputRef.current) {
       boardPhotoInputRef.current.value = "";
     }
+  }
+
+  async function loadArchive() {
+    setIsArchiveLoading(true);
+    setArchiveStatus("Loading saved lectures...");
+
+    try {
+      const response = await fetch("/api/lectures", {
+        headers: {
+          "x-app-password": password
+        }
+      });
+      const data = (await response.json()) as ArchiveResponse;
+
+      if (!response.ok) {
+        throw new Error(data.error || "Could not load archive.");
+      }
+
+      if (data.archiveEnabled === false) {
+        setArchiveStatus("Archive is not configured yet.");
+        setArchiveLectures([]);
+        return;
+      }
+
+      setArchiveLectures(data.lectures || []);
+      setArchiveStatus(
+        `${data.lectures?.length || 0} saved lecture${
+          data.lectures?.length === 1 ? "" : "s"
+        } loaded.`
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not load archive.";
+      setArchiveStatus(message);
+    } finally {
+      setIsArchiveLoading(false);
+    }
+  }
+
+  function openArchivedLecture(lecture: ArchiveLecture) {
+    const loadedMode =
+      lecture.transcript_mode === "raw" ||
+      lecture.transcript_mode === "clean" ||
+      lecture.transcript_mode === "latex"
+        ? lecture.transcript_mode
+        : "latex";
+    const metadataBlock = buildTranscriptMetadata({
+      course: lecture.course || "",
+      lectureTitle: lecture.lecture_title || "",
+      lectureDate: lecture.lecture_date || "",
+      sourceFile: lecture.source_file || "Archived lecture",
+      mode: loadedMode,
+      boardPhotoCount: lecture.board_photo_count || 0
+    });
+
+    setCourse(lecture.course || "");
+    setLectureTitle(lecture.lecture_title || "");
+    setLectureDate(lecture.lecture_date || "");
+    setMode(loadedMode);
+    setSelectedFile(null);
+    setBoardPhotos([]);
+    setTranscript(`${metadataBlock}${lecture.transcript || ""}`);
+    setRawTranscript(lecture.raw_transcript || "");
+    setBoardContext(lecture.board_context || "");
+    setUsage(null);
+    setBoardUsage(null);
+    setFormattingUsage(null);
+    setStage("Ready");
+    setStatus("Archived lecture opened.");
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  function archiveTitle(lecture: ArchiveLecture) {
+    return (
+      lecture.lecture_title ||
+      lecture.course ||
+      lecture.source_file ||
+      "Untitled lecture"
+    );
   }
 
   return (
@@ -945,6 +1070,44 @@ export default function Home() {
         <p className="status" role="status" aria-live="polite">
           {status || "Ready."}
         </p>
+
+        <details className="archive-panel">
+          <summary>Lecture archive</summary>
+          <div className="archive-toolbar">
+            <button
+              className="secondary"
+              type="button"
+              onClick={loadArchive}
+              disabled={isArchiveLoading}
+            >
+              {isArchiveLoading ? "Loading..." : "Load saved lectures"}
+            </button>
+            <span>{archiveStatus || "Saved lectures will appear here."}</span>
+          </div>
+
+          {archiveLectures.length ? (
+            <div className="archive-list">
+              {archiveLectures.map((lecture) => (
+                <button
+                  type="button"
+                  key={lecture.id}
+                  onClick={() => openArchivedLecture(lecture)}
+                >
+                  <strong>{archiveTitle(lecture)}</strong>
+                  <span>
+                    {[lecture.course, lecture.lecture_date]
+                      .filter(Boolean)
+                      .join(" • ") || "No course/date"}
+                  </span>
+                  <span>
+                    {lecture.board_photo_count || 0} board photo
+                    {lecture.board_photo_count === 1 ? "" : "s"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </details>
 
         {usage || boardUsage || formattingUsage ? (
           <details className="usage-details">
