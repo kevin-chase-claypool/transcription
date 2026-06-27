@@ -616,6 +616,17 @@ export default function Home() {
         </div>
 
         <form className="form" onSubmit={handleSubmit}>
+          <div className="form-actions">
+            <button
+              className="secondary"
+              type="button"
+              onClick={resetTranscript}
+              disabled={isLoading}
+            >
+              New transcript
+            </button>
+          </div>
+
           <label className="field password-field">
             <span>App password</span>
             <input
@@ -817,9 +828,6 @@ export default function Home() {
           </button>
           <button type="button" onClick={openInOverleaf} disabled={!transcript}>
             Overleaf
-          </button>
-          <button type="button" onClick={resetTranscript} disabled={isLoading}>
-            New
           </button>
         </div>
 
