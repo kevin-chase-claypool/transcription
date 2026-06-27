@@ -100,6 +100,7 @@ textarea {
 
 .file-info,
 .form-actions,
+.board-panel,
 .metadata-grid,
 .advanced,
 .mode-field,
@@ -255,6 +256,57 @@ textarea {
   padding: 0 10px 10px;
 }
 
+.board-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f7f9fc;
+}
+
+.board-panel h2 {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
+.board-panel p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.25;
+}
+
+.board-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.upload-photos {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.upload-photos input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.board-panel .board-info {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-weight: 700;
+}
+
 .primary,
 .secondary,
 .actions button {
@@ -404,6 +456,10 @@ textarea:disabled {
   resize: none;
 }
 
+.board-context {
+  margin-bottom: 8px;
+}
+
 @media (max-width: 520px) {
   .page {
     align-items: stretch;
@@ -427,6 +483,18 @@ textarea:disabled {
 
   .metadata-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .board-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .board-actions {
+    justify-content: stretch;
+  }
+
+  .board-actions .secondary {
+    flex: 1 1 0;
   }
 
   .advanced-grid {

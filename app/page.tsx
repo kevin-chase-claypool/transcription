@@ -6,6 +6,8 @@ type TranscribeResponse = {
   text?: string;
   rawText?: string;
   usage?: TranscriptionUsage;
+  boardContext?: string;
+  boardUsage?: FormattingUsage | null;
   formattingUsage?: FormattingUsage | null;
   error?: string;
 };
@@ -33,7 +35,10 @@ type FormattingUsage = {
 };
 
 const ACCEPTED_FORMATS = ".mp3,.wav,.m4a,.mp4,.mpeg,.webm,.ogg,audio/*,video/*";
+const ACCEPTED_IMAGE_FORMATS = "image/*";
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
+const BOARD_IMAGE_MAX_DIMENSION = 1600;
+const BOARD_IMAGE_QUALITY = 0.72;
 const PASSWORD_STORAGE_KEY = "tablet-transcriber-password";
 
 type TranscriptMode = "raw" | "clean" | "latex";
@@ -309,12 +314,61 @@ function formatFileSize(bytes: number) {
   return `${megabytes.toFixed(2)} MB`;
 }
 
+function loadImageFromFile(file: File) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    const url = URL.createObjectURL(file);
+
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error(`Could not read ${file.name}.`));
+    };
+    image.src = url;
+  });
+}
+
+async function compressBoardPhoto(file: File) {
+  const image = await loadImageFromFile(file);
+  const scale = Math.min(
+    1,
+    BOARD_IMAGE_MAX_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight)
+  );
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    return file;
+  }
+
+  context.drawImage(image, 0, 0, width, height);
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/jpeg", BOARD_IMAGE_QUALITY);
+  });
+
+  if (!blob || blob.size >= file.size) {
+    return file;
+  }
+
+  const safeName = file.name.replace(/\.[^.]+$/, "") || "board-photo";
+  return new File([blob], `${safeName}.jpg`, { type: "image/jpeg" });
+}
+
 function buildTranscriptMetadata(metadata: {
   course: string;
   lectureTitle: string;
   lectureDate: string;
   sourceFile?: string;
   mode: TranscriptMode;
+  boardPhotoCount: number;
 }) {
   const rows = [
     "Transcript Metadata",
@@ -322,6 +376,7 @@ function buildTranscriptMetadata(metadata: {
     `Lecture Title: ${metadata.lectureTitle.trim() || "Not specified"}`,
     `Lecture Date: ${metadata.lectureDate.trim() || "Not specified"}`,
     `Source File: ${metadata.sourceFile || "Not specified"}`,
+    `Board Photos: ${metadata.boardPhotoCount}`,
     `Transcript Mode: ${metadata.mode}`,
     `Created: ${new Date().toLocaleString()}`
   ];
@@ -365,9 +420,11 @@ ${body}
 
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const boardPhotoInputRef = useRef<HTMLInputElement>(null);
   const [password, setPassword] = useState("");
   const [rememberPassword, setRememberPassword] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [boardPhotos, setBoardPhotos] = useState<File[]>([]);
   const [language, setLanguage] = useState("en");
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState<TranscriptMode>("latex");
@@ -377,6 +434,8 @@ export default function Home() {
   const [transcript, setTranscript] = useState("");
   const [rawTranscript, setRawTranscript] = useState("");
   const [usage, setUsage] = useState<TranscriptionUsage | null>(null);
+  const [boardContext, setBoardContext] = useState("");
+  const [boardUsage, setBoardUsage] = useState<FormattingUsage | null>(null);
   const [formattingUsage, setFormattingUsage] =
     useState<FormattingUsage | null>(null);
   const [status, setStatus] = useState("");
@@ -415,6 +474,46 @@ export default function Home() {
     setStatus(`Selected ${file.name} (${formatFileSize(file.size)}).`);
   }
 
+  async function handleBoardPhotoChange(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files || []);
+
+    if (!files.length) {
+      return;
+    }
+
+    setStatus(`Preparing ${files.length} board photo${files.length === 1 ? "" : "s"}...`);
+
+    try {
+      const compressedPhotos = await Promise.all(files.map(compressBoardPhoto));
+      setBoardPhotos((current) => [...current, ...compressedPhotos]);
+      setStatus(
+        `${compressedPhotos.length} board photo${
+          compressedPhotos.length === 1 ? "" : "s"
+        } added.`
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not prepare board photos.";
+      setStatus(message);
+    } finally {
+      if (boardPhotoInputRef.current) {
+        boardPhotoInputRef.current.value = "";
+      }
+    }
+  }
+
+  function clearBoardPhotos() {
+    setBoardPhotos([]);
+    setBoardContext("");
+    setBoardUsage(null);
+
+    if (boardPhotoInputRef.current) {
+      boardPhotoInputRef.current.value = "";
+    }
+
+    setStatus("Board photos cleared.");
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -431,6 +530,8 @@ export default function Home() {
 
     setIsLoading(true);
     setUsage(null);
+    setBoardContext("");
+    setBoardUsage(null);
     setFormattingUsage(null);
     setRawTranscript("");
     setStage("Uploading");
@@ -457,6 +558,9 @@ export default function Home() {
       formData.append("course", course.trim());
       formData.append("lectureTitle", lectureTitle.trim());
       formData.append("lectureDate", lectureDate.trim());
+      boardPhotos.forEach((photo) => {
+        formData.append("boardPhotos", photo);
+      });
 
       const response = await fetch("/api/transcribe", {
         method: "POST",
@@ -474,11 +578,14 @@ export default function Home() {
         lectureTitle,
         lectureDate,
         sourceFile: file.name,
-        mode
+        mode,
+        boardPhotoCount: boardPhotos.length
       });
       setTranscript(`${metadataBlock}${data.text || ""}`);
       setRawTranscript(data.rawText || "");
       setUsage(data.usage || null);
+      setBoardContext(data.boardContext || "");
+      setBoardUsage(data.boardUsage || null);
       setFormattingUsage(data.formattingUsage || null);
       setStage("Ready");
       setStatus("Transcript ready.");
@@ -589,15 +696,22 @@ export default function Home() {
 
   function resetTranscript() {
     setSelectedFile(null);
+    setBoardPhotos([]);
     setTranscript("");
     setRawTranscript("");
     setUsage(null);
+    setBoardContext("");
+    setBoardUsage(null);
     setFormattingUsage(null);
     setStage("Ready");
     setStatus("Ready.");
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
+    }
+
+    if (boardPhotoInputRef.current) {
+      boardPhotoInputRef.current.value = "";
     }
   }
 
@@ -665,6 +779,43 @@ export default function Home() {
               {selectedFile.name} • {formatFileSize(selectedFile.size)} / 25 MB
             </p>
           ) : null}
+
+          <section className="board-panel" aria-labelledby="board-title">
+            <div>
+              <h2 id="board-title">Board photos</h2>
+              <p>
+                Add whiteboard photos to help the notes capture written math.
+              </p>
+            </div>
+            <div className="board-actions">
+              <label className="secondary upload-photos">
+                Add photos
+                <input
+                  ref={boardPhotoInputRef}
+                  type="file"
+                  accept={ACCEPTED_IMAGE_FORMATS}
+                  multiple
+                  onChange={handleBoardPhotoChange}
+                  disabled={isLoading}
+                />
+              </label>
+              <button
+                className="secondary"
+                type="button"
+                onClick={clearBoardPhotos}
+                disabled={isLoading || boardPhotos.length === 0}
+              >
+                Clear
+              </button>
+            </div>
+            <p className="board-info">
+              {boardPhotos.length
+                ? `${boardPhotos.length} photo${
+                    boardPhotos.length === 1 ? "" : "s"
+                  } selected`
+                : "No board photos selected"}
+            </p>
+          </section>
 
           <fieldset className="mode-field" disabled={isLoading}>
             <legend>Transcript mode</legend>
@@ -783,7 +934,7 @@ export default function Home() {
           {status || "Ready."}
         </p>
 
-        {usage || formattingUsage ? (
+        {usage || boardUsage || formattingUsage ? (
           <details className="usage-details">
             <summary>Usage details</summary>
             {usage ? (
@@ -793,12 +944,26 @@ export default function Home() {
               </div>
             ) : null}
 
+            {boardUsage ? (
+              <div className="usage" aria-label="Board photo usage">
+                <span>Board photos</span>
+                <strong>{formatTokenUsage(boardUsage)}</strong>
+              </div>
+            ) : null}
+
             {formattingUsage ? (
               <div className="usage" aria-label="Formatting usage">
                 <span>Formatting</span>
                 <strong>{formatTokenUsage(formattingUsage)}</strong>
               </div>
             ) : null}
+          </details>
+        ) : null}
+
+        {boardContext ? (
+          <details className="raw-transcript board-context">
+            <summary>Extracted board context</summary>
+            <textarea value={boardContext} readOnly rows={6} />
           </details>
         ) : null}
 

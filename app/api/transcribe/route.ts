@@ -3,7 +3,9 @@ import OpenAI from "openai";
 export const runtime = "nodejs";
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
+const MAX_BOARD_IMAGE_BYTES = 5 * 1024 * 1024;
 const DEFAULT_MATH_FORMAT_MODEL = "gpt-4.1-mini";
+const DEFAULT_VISION_MODEL = "gpt-4.1-mini";
 const RATE_LIMIT_MAX_REQUESTS = 8;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
@@ -83,6 +85,65 @@ function buildLectureContext({
     .join("\n");
 }
 
+async function fileToDataUrl(file: File) {
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const mimeType = file.type || "image/jpeg";
+  return `data:${mimeType};base64,${buffer.toString("base64")}`;
+}
+
+async function analyzeBoardPhotos(
+  client: OpenAI,
+  photos: File[],
+  context: string
+) {
+  if (!photos.length) {
+    return null;
+  }
+
+  const imageContent = await Promise.all(
+    photos.map(async (photo) => ({
+      type: "input_image" as const,
+      image_url: await fileToDataUrl(photo)
+    }))
+  );
+
+  const response = await client.responses.create({
+    model: process.env.OPENAI_VISION_MODEL || DEFAULT_VISION_MODEL,
+    instructions: [
+      "Extract concise study context from lecture whiteboard photos.",
+      "Focus on equations, definitions, diagrams, theorem names, variable meanings, worked steps, and topic labels.",
+      "Write compact Markdown notes that can help correct and augment an audio transcript.",
+      "Use LaTeX for clearly visible math.",
+      "Do not invent content that is not visible.",
+      "If an image is blurry or unreadable, say so briefly."
+    ].join(" "),
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: [
+              context ? `Lecture context:\n${context}` : "",
+              `Analyze ${photos.length} whiteboard photo${
+                photos.length === 1 ? "" : "s"
+              } and return compact board context for transcript formatting.`
+            ]
+              .filter(Boolean)
+              .join("\n\n")
+          },
+          ...imageContent
+        ]
+      }
+    ] as OpenAI.Responses.ResponseInput
+  });
+
+  return {
+    text: response.output_text.trim(),
+    usage: response.usage
+  };
+}
+
 function contextValue(context: string, label: string) {
   const line = context
     .split("\n")
@@ -123,7 +184,8 @@ async function formatTranscript(
   client: OpenAI,
   transcript: string,
   mode: string,
-  context: string
+  context: string,
+  boardContext: string
 ) {
   const latexInstructions =
     "Convert spoken equations, variables, functions, matrices, fractions, " +
@@ -158,6 +220,7 @@ async function formatTranscript(
             type: "input_text",
             text: [
               context ? `Lecture context:\n${context}` : "",
+              boardContext ? `Whiteboard/photo context:\n${boardContext}` : "",
               "Raw transcript:",
               transcript
             ]
@@ -186,6 +249,9 @@ export async function POST(request: Request) {
     const courseValue = formData.get("course");
     const lectureTitleValue = formData.get("lectureTitle");
     const lectureDateValue = formData.get("lectureDate");
+    const boardPhotos = formData
+      .getAll("boardPhotos")
+      .filter((value): value is File => value instanceof File && value.size > 0);
 
     if (!(upload instanceof File)) {
       return jsonError("Missing file upload.", 400);
@@ -243,6 +309,24 @@ export async function POST(request: Request) {
       apiKey: process.env.OPENAI_API_KEY
     });
 
+    for (const photo of boardPhotos) {
+      if (!photo.type.startsWith("image/")) {
+        return jsonError("Board context files must be images.", 400);
+      }
+
+      if (photo.size > MAX_BOARD_IMAGE_BYTES) {
+        return jsonError(
+          "One or more board photos is too large. Please use compressed photos under 5 MB each.",
+          413
+        );
+      }
+    }
+
+    const boardAnalysis =
+      mode === "clean" || mode === "latex"
+        ? await analyzeBoardPhotos(client, boardPhotos, lectureContext)
+        : null;
+
     const transcription = await client.audio.transcriptions.create({
       model: "gpt-4o-transcribe",
       file: upload,
@@ -251,13 +335,21 @@ export async function POST(request: Request) {
     });
 
     const formatted = mode === "clean" || mode === "latex"
-      ? await formatTranscript(client, transcription.text, mode, lectureContext)
+      ? await formatTranscript(
+          client,
+          transcription.text,
+          mode,
+          lectureContext,
+          boardAnalysis?.text || ""
+        )
       : null;
 
     return Response.json({
       text: formatted?.text || transcription.text,
       rawText: mode === "raw" ? undefined : transcription.text,
       usage: transcription.usage,
+      boardContext: boardAnalysis?.text || "",
+      boardUsage: boardAnalysis?.usage || null,
       formattingUsage: formatted?.usage || null
     });
   } catch (error) {

@@ -12,6 +12,7 @@ The `APP_PASSWORD` environment variable protects the transcription endpoint from
 - Optional "remember on this device" app-password storage in the browser.
 - File size display before upload, with the 25 MB limit shown early.
 - Course, lecture title, and date fields that guide transcription and generated LaTeX exports.
+- Optional board-photo uploads so whiteboard equations and diagrams can augment clean notes and LaTeX output.
 - Searchable metadata block at the top of every generated transcript.
 - Optional language field, defaulting to `en`.
 - Optional lecture context field for names, theorem names, symbols, jargon, places, or vocabulary.
@@ -49,6 +50,7 @@ Add your OpenAI API key to `.env.local`:
 OPENAI_API_KEY=sk-your_key_here
 APP_PASSWORD=choose-a-private-password
 OPENAI_FORMAT_MODEL=gpt-4.1-mini
+OPENAI_VISION_MODEL=gpt-4.1-mini
 ```
 
 Start the development server:
@@ -67,7 +69,8 @@ Open the local URL printed by Next.js, usually `http://localhost:3000`.
 4. Add `OPENAI_API_KEY` as a Vercel environment variable.
 5. Add `APP_PASSWORD` as a Vercel environment variable to prevent public use of your API credits.
 6. Optionally add `OPENAI_FORMAT_MODEL` if you want to override the default `gpt-4.1-mini` math-formatting model.
-7. Deploy the project.
+7. Optionally add `OPENAI_VISION_MODEL` if you want to override the default `gpt-4.1-mini` board-photo analysis model.
+8. Deploy the project.
 
 Do not commit `.env`, `.env.local`, or any real API key to GitHub.
 
@@ -77,8 +80,10 @@ OpenAI file uploads for this transcription route are limited to 25 MB, so this a
 
 The "Clean notes" and "LaTeX math" modes make a second OpenAI API call after transcription. That second call can improve class notes, add a study introduction, and add an end-of-transcript study summary, but it adds token usage and cost. The app shows formatting token usage separately when OpenAI returns it.
 
+Board photos are optional and are used only in "Clean notes" and "LaTeX math" modes. The browser compresses selected photos before upload, and the server extracts concise whiteboard context before formatting the transcript. There is no fixed photo-count limit in the UI, but very large batches can still hit browser, network, Vercel, or API request-size limits. Use clear photos of the board rather than many near-duplicate images.
+
 The "Open in Overleaf" button posts the generated LaTeX document to Overleaf's official `https://www.overleaf.com/docs` import endpoint. Overleaf handles project creation and PDF compilation after the new tab opens.
 
-Each generated transcript starts with a metadata block containing the course, lecture title, lecture date, source file, transcript mode, and created timestamp. This metadata is included when copying, downloading `.txt`, downloading `.tex`, or opening the document in Overleaf, so later searches can find the lecture by class or topic.
+Each generated transcript starts with a metadata block containing the course, lecture title, lecture date, source file, board-photo count, transcript mode, and created timestamp. This metadata is included when copying, downloading `.txt`, downloading `.tex`, or opening the document in Overleaf, so later searches can find the lecture by class or topic.
 
 The course, lecture title, lecture date, transcript mode, and lecture context field are also sent as context to the transcription request. This helps the speech-to-text model prefer the right class vocabulary and math terminology while still grounding the transcript in the uploaded audio.
