@@ -548,27 +548,35 @@ export async function POST(request: Request) {
         );
     const finalText = formatted?.text || transcription?.text || "";
     const rawText = transcription && mode !== "raw" ? transcription.text : "";
-    const savedAssets = await uploadLectureAssets({
-      photos: boardPhotos,
-      course,
-      lectureTitle,
-      lectureDate
-    });
-    const savedLecture = await saveLecture({
-      course,
-      lectureTitle,
-      lectureDate,
-      sourceFile: audioFile?.name || "No audio file",
-      mode: transcription ? mode : mode === "latex" ? "latex" : "clean",
-      transcript: finalText,
-      rawTranscript: rawText,
-      boardContext: boardAnalysis?.text || "",
-      boardPhotoCount: boardPhotos.length,
-      assets: savedAssets,
-      usage: transcription?.usage || null,
-      boardUsage: boardAnalysis?.usage || null,
-      formattingUsage: formatted?.usage || null
-    });
+    let savedLecture = null;
+    let archiveError = "";
+
+    try {
+      const savedAssets = await uploadLectureAssets({
+        photos: boardPhotos,
+        course,
+        lectureTitle,
+        lectureDate
+      });
+      savedLecture = await saveLecture({
+        course,
+        lectureTitle,
+        lectureDate,
+        sourceFile: audioFile?.name || "No audio file",
+        mode: transcription ? mode : mode === "latex" ? "latex" : "clean",
+        transcript: finalText,
+        rawTranscript: rawText,
+        boardContext: boardAnalysis?.text || "",
+        boardPhotoCount: boardPhotos.length,
+        assets: savedAssets,
+        usage: transcription?.usage || null,
+        boardUsage: boardAnalysis?.usage || null,
+        formattingUsage: formatted?.usage || null
+      });
+    } catch (error) {
+      archiveError =
+        error instanceof Error ? error.message : "Could not save archive.";
+    }
 
     return Response.json({
       text: finalText,
@@ -577,7 +585,8 @@ export async function POST(request: Request) {
       boardContext: boardAnalysis?.text || "",
       boardUsage: boardAnalysis?.usage || null,
       formattingUsage: formatted?.usage || null,
-      savedLecture
+      savedLecture,
+      archiveError
     });
   } catch (error) {
     const message =

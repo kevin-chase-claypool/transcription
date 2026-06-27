@@ -13,6 +13,7 @@ type TranscribeResponse = {
     id: string;
     created_at: string;
   } | null;
+  archiveError?: string;
   error?: string;
 };
 
@@ -634,6 +635,10 @@ export default function Home() {
           ? file
             ? "Transcript ready and saved."
             : "Photo lesson ready and saved."
+          : data.archiveError
+            ? file
+              ? `Transcript ready. Archive save failed: ${data.archiveError}`
+              : `Photo lesson ready. Archive save failed: ${data.archiveError}`
           : file
             ? "Transcript ready."
             : "Photo lesson ready."
