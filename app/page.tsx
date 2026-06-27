@@ -68,6 +68,12 @@ type ArchiveResponse = {
   error?: string;
 };
 
+type LectureMutationResponse = {
+  lecture?: ArchiveLecture;
+  ok?: boolean;
+  error?: string;
+};
+
 type AppTab = "create" | "archive";
 
 const ACCEPTED_FORMATS = ".mp3,.wav,.m4a,.mp4,.mpeg,.webm,.ogg,audio/*,video/*";
@@ -633,6 +639,17 @@ export default function Home() {
   const [archiveLectures, setArchiveLectures] = useState<ArchiveLecture[]>([]);
   const [selectedArchiveLecture, setSelectedArchiveLecture] =
     useState<ArchiveLecture | null>(null);
+  const [archiveEdit, setArchiveEdit] = useState({
+    course: "",
+    lecture_title: "",
+    lecture_date: "",
+    transcript_mode: "latex" as TranscriptMode,
+    transcript: ""
+  });
+  const [archiveViewMode, setArchiveViewMode] = useState<"preview" | "source">(
+    "preview"
+  );
+  const [isArchiveSaving, setIsArchiveSaving] = useState(false);
   const [archiveStatus, setArchiveStatus] = useState("");
   const [isArchiveLoading, setIsArchiveLoading] = useState(false);
   const [status, setStatus] = useState("");
@@ -654,6 +671,33 @@ export default function Home() {
       window.localStorage.removeItem(PASSWORD_STORAGE_KEY);
     }
   }, [password, rememberPassword]);
+
+  useEffect(() => {
+    if (!selectedArchiveLecture) {
+      setArchiveEdit({
+        course: "",
+        lecture_title: "",
+        lecture_date: "",
+        transcript_mode: "latex",
+        transcript: ""
+      });
+      return;
+    }
+
+    setArchiveEdit({
+      course: selectedArchiveLecture.course || "",
+      lecture_title: selectedArchiveLecture.lecture_title || "",
+      lecture_date: selectedArchiveLecture.lecture_date || "",
+      transcript_mode:
+        selectedArchiveLecture.transcript_mode === "raw" ||
+        selectedArchiveLecture.transcript_mode === "clean" ||
+        selectedArchiveLecture.transcript_mode === "latex"
+          ? selectedArchiveLecture.transcript_mode
+          : "latex",
+      transcript: selectedArchiveLecture.transcript || ""
+    });
+    setArchiveViewMode("preview");
+  }, [selectedArchiveLecture]);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] || null;
@@ -1012,6 +1056,97 @@ export default function Home() {
       lecture.source_file ||
       "Untitled lecture"
     );
+  }
+
+  function updateArchiveLectureInState(updated: ArchiveLecture) {
+    setArchiveLectures((current) =>
+      current.map((lecture) => (lecture.id === updated.id ? updated : lecture))
+    );
+    setSelectedArchiveLecture(updated);
+  }
+
+  async function saveArchivedLecture() {
+    if (!selectedArchiveLecture) {
+      return;
+    }
+
+    setIsArchiveSaving(true);
+    setArchiveStatus("Saving lecture...");
+
+    try {
+      const response = await fetch(`/api/lectures/${selectedArchiveLecture.id}`, {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+          "x-app-password": password
+        },
+        body: JSON.stringify(archiveEdit)
+      });
+      const data = (await response.json()) as LectureMutationResponse;
+
+      if (!response.ok || !data.lecture) {
+        throw new Error(data.error || "Could not save lecture.");
+      }
+
+      updateArchiveLectureInState({
+        ...selectedArchiveLecture,
+        ...data.lecture,
+        assetUrls: selectedArchiveLecture.assetUrls
+      });
+      setArchiveStatus("Lecture saved.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not save lecture.";
+      setArchiveStatus(message);
+    } finally {
+      setIsArchiveSaving(false);
+    }
+  }
+
+  async function deleteArchivedLecture() {
+    if (!selectedArchiveLecture) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete "${archiveTitle(selectedArchiveLecture)}" and its board images?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsArchiveSaving(true);
+    setArchiveStatus("Deleting lecture...");
+
+    try {
+      const response = await fetch(`/api/lectures/${selectedArchiveLecture.id}`, {
+        method: "DELETE",
+        headers: {
+          "x-app-password": password
+        }
+      });
+      const data = (await response.json()) as LectureMutationResponse;
+
+      if (!response.ok) {
+        throw new Error(data.error || "Could not delete lecture.");
+      }
+
+      setArchiveLectures((current) => {
+        const remaining = current.filter(
+          (lecture) => lecture.id !== selectedArchiveLecture.id
+        );
+        setSelectedArchiveLecture(remaining[0] || null);
+        return remaining;
+      });
+      setArchiveStatus("Lecture deleted.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not delete lecture.";
+      setArchiveStatus(message);
+    } finally {
+      setIsArchiveSaving(false);
+    }
   }
 
   function groupedArchive() {
@@ -1427,13 +1562,90 @@ export default function Home() {
                             .join(" • ")}
                         </p>
                       </div>
-                      <button
-                        className="secondary"
-                        type="button"
-                        onClick={() => openArchivedLecture(selectedArchiveLecture)}
-                      >
-                        Open in editor
-                      </button>
+                      <div className="archive-actions">
+                        <button
+                          className="secondary"
+                          type="button"
+                          onClick={saveArchivedLecture}
+                          disabled={isArchiveSaving}
+                        >
+                          Save
+                        </button>
+                        <button
+                          className="secondary"
+                          type="button"
+                          onClick={() =>
+                            openArchivedLecture(selectedArchiveLecture)
+                          }
+                        >
+                          Open in editor
+                        </button>
+                        <button
+                          className="danger"
+                          type="button"
+                          onClick={deleteArchivedLecture}
+                          disabled={isArchiveSaving}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="archive-edit-grid">
+                      <label className="field">
+                        <span>Course</span>
+                        <input
+                          value={archiveEdit.course}
+                          onChange={(event) =>
+                            setArchiveEdit((current) => ({
+                              ...current,
+                              course: event.target.value
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Lecture title</span>
+                        <input
+                          value={archiveEdit.lecture_title}
+                          onChange={(event) =>
+                            setArchiveEdit((current) => ({
+                              ...current,
+                              lecture_title: event.target.value
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Date</span>
+                        <input
+                          type="date"
+                          value={archiveEdit.lecture_date || ""}
+                          onChange={(event) =>
+                            setArchiveEdit((current) => ({
+                              ...current,
+                              lecture_date: event.target.value
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Mode</span>
+                        <select
+                          value={archiveEdit.transcript_mode}
+                          onChange={(event) =>
+                            setArchiveEdit((current) => ({
+                              ...current,
+                              transcript_mode: event.target
+                                .value as TranscriptMode
+                            }))
+                          }
+                        >
+                          <option value="raw">Raw</option>
+                          <option value="clean">Notes</option>
+                          <option value="latex">LaTeX</option>
+                        </select>
+                      </label>
                     </div>
 
                     {selectedArchiveLecture.assetUrls?.length ? (
@@ -1457,18 +1669,40 @@ export default function Home() {
                       </div>
                     ) : null}
 
-                    <MarkdownMathPreview
-                      text={selectedArchiveLecture.transcript || ""}
-                    />
+                    <div className="archive-view-toggle">
+                      <button
+                        type="button"
+                        className={archiveViewMode === "preview" ? "active" : ""}
+                        onClick={() => setArchiveViewMode("preview")}
+                      >
+                        Rendered
+                      </button>
+                      <button
+                        type="button"
+                        className={archiveViewMode === "source" ? "active" : ""}
+                        onClick={() => setArchiveViewMode("source")}
+                      >
+                        Source
+                      </button>
+                    </div>
 
-                    <details className="archive-source">
-                      <summary>Markdown / LaTeX source</summary>
+                    {archiveViewMode === "preview" ? (
+                      <MarkdownMathPreview text={archiveEdit.transcript || ""} />
+                    ) : (
+                      <label className="archive-source field">
+                        <span>Markdown / LaTeX source</span>
                       <textarea
-                        value={selectedArchiveLecture.transcript || ""}
-                        readOnly
-                        rows={10}
+                          value={archiveEdit.transcript || ""}
+                          onChange={(event) =>
+                            setArchiveEdit((current) => ({
+                              ...current,
+                              transcript: event.target.value
+                            }))
+                          }
+                          rows={14}
                       />
-                    </details>
+                      </label>
+                    )}
                   </>
                 ) : (
                   <p className="empty-archive">

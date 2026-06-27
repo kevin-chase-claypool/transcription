@@ -33,6 +33,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -151,6 +152,7 @@ textarea {
 }
 
 .field input,
+.field select,
 .field textarea {
   width: 100%;
   min-width: 0;
@@ -163,6 +165,7 @@ textarea {
 }
 
 .field input:focus,
+.field select:focus,
 .field textarea:focus {
   border-color: var(--primary);
   outline: 3px solid rgba(11, 107, 203, 0.16);
@@ -383,6 +386,13 @@ textarea {
   border-bottom: 1px solid var(--border);
 }
 
+.archive-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
 .archive-viewer-header h2 {
   margin: 0;
   font-size: 1.05rem;
@@ -393,6 +403,15 @@ textarea {
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 0.84rem;
+}
+
+.archive-edit-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 140px 110px;
+  gap: 8px;
+  margin: 12px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
 }
 
 .archive-images {
@@ -455,13 +474,34 @@ textarea {
   padding: 4px 0;
 }
 
-.archive-source {
+.archive-view-toggle {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(100px, 1fr));
+  gap: 4px;
   margin-top: 12px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f7f9fc;
 }
 
-.archive-source summary {
-  cursor: pointer;
+.archive-view-toggle button {
+  min-height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
   font-weight: 700;
+  cursor: pointer;
+}
+
+.archive-view-toggle .active {
+  background: var(--primary);
+  color: #ffffff;
+}
+
+.archive-source {
+  margin-top: 12px;
 }
 
 .archive-source textarea {
@@ -529,6 +569,7 @@ textarea {
 
 .primary,
 .secondary,
+.danger,
 .actions button {
   min-height: 40px;
   border: 0;
@@ -553,6 +594,13 @@ textarea {
   background: #e8eef7;
   color: var(--text);
   border: 1px solid var(--border);
+}
+
+.danger {
+  min-height: 34px;
+  background: #fff1f0;
+  color: #9f1f17;
+  border: 1px solid #f1b2ac;
 }
 
 .primary:hover:not(:disabled) {
@@ -730,6 +778,19 @@ textarea:disabled {
     min-height: 0;
   }
 
+  .archive-viewer-header,
+  .archive-edit-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .archive-actions {
+    justify-content: stretch;
+  }
+
+  .archive-actions button {
+    flex: 1 1 0;
+  }
+
   .archive-tree,
   .archive-viewer {
     max-height: none;
@@ -748,6 +809,11 @@ textarea:disabled {
   .archive-grid {
     grid-template-columns: minmax(0, 1fr);
     min-height: 0;
+  }
+
+  .archive-viewer-header,
+  .archive-edit-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .archive-tree,
@@ -784,6 +850,7 @@ textarea:disabled {
 
   .primary,
   .secondary,
+  .danger,
   .actions button {
     min-height: 34px;
     padding: 7px 8px;
