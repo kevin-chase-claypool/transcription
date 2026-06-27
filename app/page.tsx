@@ -558,23 +558,6 @@ export default function Home() {
           </div>
         ) : null}
 
-        <label className="field transcript">
-          <span>{mode === "raw" ? "Transcript" : "Formatted transcript"}</span>
-          <textarea
-            value={transcript}
-            onChange={(event) => setTranscript(event.target.value)}
-            placeholder="Your transcript will appear here."
-            rows={8}
-          />
-        </label>
-
-        {rawTranscript ? (
-          <details className="raw-transcript">
-            <summary>Original transcript</summary>
-            <textarea value={rawTranscript} readOnly rows={8} />
-          </details>
-        ) : null}
-
         <div className="actions">
           <button type="button" onClick={copyTranscript} disabled={!transcript}>
             Copy transcript
@@ -593,6 +576,23 @@ export default function Home() {
             Open in Overleaf
           </button>
         </div>
+
+        <label className="field transcript">
+          <span>{mode === "raw" ? "Transcript" : "Formatted transcript"}</span>
+          <textarea
+            value={transcript}
+            onChange={(event) => setTranscript(event.target.value)}
+            placeholder="Your transcript will appear here."
+            rows={8}
+          />
+        </label>
+
+        {rawTranscript ? (
+          <details className="raw-transcript">
+            <summary>Original transcript</summary>
+            <textarea value={rawTranscript} readOnly rows={8} />
+          </details>
+        ) : null}
       </section>
     </main>
   );

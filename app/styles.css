@@ -16,7 +16,7 @@
 }
 
 html {
-  height: 100%;
+  min-height: 100%;
 }
 
 body {
@@ -242,10 +242,15 @@ textarea {
 }
 
 .actions {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 10px;
+  margin: 0 0 10px;
+  padding: 8px 0;
+  background: var(--card);
   flex: 0 0 auto;
 }
 
