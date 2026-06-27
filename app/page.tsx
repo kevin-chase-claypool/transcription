@@ -128,10 +128,32 @@ function normalizeLatexStructure(text: string) {
 
 function normalizeBareMathSyntax(text: string) {
   return text
+    .replace(/\\\{\}\(/g, "\\(")
+    .replace(/\\\{\}\)/g, "\\)")
+    .replace(/\\\{\}\[/g, "\\[")
+    .replace(/\\\{\}\]/g, "\\]")
     .replace(/\\\{\}/g, "\\")
+    .replace(/\\textbackslash\{\}\(/g, "\\(")
+    .replace(/\\textbackslash\{\}\)/g, "\\)")
+    .replace(/\\textbackslash\{\}\[/g, "\\[")
+    .replace(/\\textbackslash\{\}\]/g, "\\]")
     .replace(/\\textbackslash\{\}/g, "\\")
     .replace(/\\\{/g, "{")
     .replace(/\\\}/g, "}");
+}
+
+function isEmptyLatexArtifactLine(line: string) {
+  const normalized = normalizeBareMathSyntax(stripMarkdownMarks(line.trim()))
+    .replace(/\s/g, "");
+
+  return [
+    "\\",
+    "{}",
+    "\\(\\)",
+    "\\[\\]",
+    "\\(\\[\\]\\)",
+    "\\[\\(\\)\\]"
+  ].includes(normalized);
 }
 
 function looksLikeBareMath(line: string) {
@@ -175,6 +197,10 @@ function convertMarkdownLineToLatex(line: string) {
     return "\\bigskip\\hrule\\bigskip";
   }
 
+  if (isEmptyLatexArtifactLine(line)) {
+    return "";
+  }
+
   if (looksLikeBareMath(line)) {
     return bareMathToDisplay(line);
   }
@@ -190,6 +216,10 @@ function transcriptToLatexBody(transcript: string) {
   let inItemize = false;
 
   for (const line of lines) {
+    if (isEmptyLatexArtifactLine(line)) {
+      continue;
+    }
+
     const bullet = line.match(/^\s*[-*]\s+(.+)$/);
 
     if (bullet) {
