@@ -649,6 +649,10 @@ export default function Home() {
   const [archiveViewMode, setArchiveViewMode] = useState<"preview" | "source">(
     "preview"
   );
+  const [archiveSearch, setArchiveSearch] = useState("");
+  const [archiveCourseFilter, setArchiveCourseFilter] = useState("All");
+  const [lightboxAsset, setLightboxAsset] = useState<ArchiveAsset | null>(null);
+  const [autoLoadedArchive, setAutoLoadedArchive] = useState(false);
   const [isArchiveSaving, setIsArchiveSaving] = useState(false);
   const [archiveStatus, setArchiveStatus] = useState("");
   const [isArchiveLoading, setIsArchiveLoading] = useState(false);
@@ -671,6 +675,13 @@ export default function Home() {
       window.localStorage.removeItem(PASSWORD_STORAGE_KEY);
     }
   }, [password, rememberPassword]);
+
+  useEffect(() => {
+    if (password && !autoLoadedArchive) {
+      setAutoLoadedArchive(true);
+      void loadArchive({ switchToArchiveIfAny: true });
+    }
+  }, [password, autoLoadedArchive]);
 
   useEffect(() => {
     if (!selectedArchiveLecture) {
@@ -835,11 +846,14 @@ export default function Home() {
       setBoardUsage(data.boardUsage || null);
       setFormattingUsage(data.formattingUsage || null);
       setStage("Ready");
+      const archivePath = `${course.trim() || "Unfiled"} / ${
+        lectureDate.trim() || "No date"
+      } / ${lectureTitle.trim() || file?.name || "Untitled lecture"}`;
       setStatus(
         data.savedLecture
           ? file
-            ? "Transcript ready and saved."
-            : "Photo lesson ready and saved."
+            ? `Transcript ready. Saved to ${archivePath}.`
+            : `Photo lesson ready. Saved to ${archivePath}.`
           : data.archiveError
             ? file
               ? `Transcript ready. Archive save failed: ${data.archiveError}`
@@ -974,7 +988,7 @@ export default function Home() {
     }
   }
 
-  async function loadArchive() {
+  async function loadArchive(options?: { switchToArchiveIfAny?: boolean }) {
     setIsArchiveLoading(true);
     setArchiveStatus("Loading saved lectures...");
 
@@ -996,11 +1010,15 @@ export default function Home() {
         return;
       }
 
-      setArchiveLectures(data.lectures || []);
-      setSelectedArchiveLecture(data.lectures?.[0] || null);
+      const loadedLectures = data.lectures || [];
+      setArchiveLectures(loadedLectures);
+      setSelectedArchiveLecture((current) => current || loadedLectures[0] || null);
+      if (options?.switchToArchiveIfAny && loadedLectures.length) {
+        setActiveTab("archive");
+      }
       setArchiveStatus(
-        `${data.lectures?.length || 0} saved lecture${
-          data.lectures?.length === 1 ? "" : "s"
+        `${loadedLectures.length} saved lecture${
+          loadedLectures.length === 1 ? "" : "s"
         } loaded.`
       );
     } catch (error) {
@@ -1010,6 +1028,37 @@ export default function Home() {
     } finally {
       setIsArchiveLoading(false);
     }
+  }
+
+  function archiveHasUnsavedChanges() {
+    if (!selectedArchiveLecture) {
+      return false;
+    }
+
+    return (
+      archiveEdit.course !== (selectedArchiveLecture.course || "") ||
+      archiveEdit.lecture_title !==
+        (selectedArchiveLecture.lecture_title || "") ||
+      archiveEdit.lecture_date !== (selectedArchiveLecture.lecture_date || "") ||
+      archiveEdit.transcript_mode !== selectedArchiveLecture.transcript_mode ||
+      archiveEdit.transcript !== (selectedArchiveLecture.transcript || "")
+    );
+  }
+
+  function confirmArchiveNavigation() {
+    if (!archiveHasUnsavedChanges()) {
+      return true;
+    }
+
+    return window.confirm("You have unsaved archive changes. Continue without saving?");
+  }
+
+  function selectArchivedLecture(lecture: ArchiveLecture) {
+    if (!confirmArchiveNavigation()) {
+      return;
+    }
+
+    setSelectedArchiveLecture(lecture);
   }
 
   function openArchivedLecture(lecture: ArchiveLecture) {
@@ -1056,6 +1105,36 @@ export default function Home() {
       lecture.source_file ||
       "Untitled lecture"
     );
+  }
+
+  function archiveCourses() {
+    return Array.from(
+      new Set(
+        archiveLectures.map((lecture) => lecture.course || "Unfiled")
+      )
+    ).sort((first, second) => first.localeCompare(second));
+  }
+
+  function filteredArchiveLectures() {
+    const query = archiveSearch.trim().toLowerCase();
+
+    return archiveLectures.filter((lecture) => {
+      const courseName = lecture.course || "Unfiled";
+      const matchesCourse =
+        archiveCourseFilter === "All" || courseName === archiveCourseFilter;
+      const searchable = [
+        lecture.course,
+        lecture.lecture_title,
+        lecture.lecture_date,
+        lecture.source_file,
+        lecture.transcript
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return matchesCourse && (!query || searchable.includes(query));
+    });
   }
 
   function updateArchiveLectureInState(updated: ArchiveLecture) {
@@ -1149,10 +1228,119 @@ export default function Home() {
     }
   }
 
+  async function copyArchivedLecture() {
+    if (!selectedArchiveLecture) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(archiveEdit.transcript || "");
+    setArchiveStatus("Lecture notes copied.");
+  }
+
+  function archiveDownloadName(extension: "txt" | "tex") {
+    const title =
+      archiveEdit.lecture_title ||
+      selectedArchiveLecture?.lecture_title ||
+      "lecture";
+    const safeTitle =
+      title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "lecture";
+
+    return `${safeTitle}.${extension}`;
+  }
+
+  function downloadArchivedText() {
+    if (!selectedArchiveLecture) {
+      return;
+    }
+
+    const blob = new Blob([archiveEdit.transcript || ""], {
+      type: "text/plain;charset=utf-8"
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = archiveDownloadName("txt");
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setArchiveStatus("Lecture .txt downloaded.");
+  }
+
+  function buildArchivedTex() {
+    return buildTexDocument(archiveEdit.transcript || "", {
+      course: archiveEdit.course,
+      lectureTitle: archiveEdit.lecture_title,
+      lectureDate: archiveEdit.lecture_date
+    });
+  }
+
+  function downloadArchivedTex() {
+    if (!selectedArchiveLecture) {
+      return;
+    }
+
+    const warning = validateLatexDelimiters(archiveEdit.transcript || "");
+    if (warning) {
+      setArchiveStatus(`${warning} Review the lecture before exporting.`);
+      return;
+    }
+
+    const blob = new Blob([buildArchivedTex()], {
+      type: "application/x-tex;charset=utf-8"
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = archiveDownloadName("tex");
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setArchiveStatus("Lecture .tex downloaded.");
+  }
+
+  function openArchivedInOverleaf() {
+    if (!selectedArchiveLecture) {
+      return;
+    }
+
+    const warning = validateLatexDelimiters(archiveEdit.transcript || "");
+    if (warning) {
+      setArchiveStatus(`${warning} Review the lecture before opening Overleaf.`);
+      return;
+    }
+
+    const form = document.createElement("form");
+    form.action = "https://www.overleaf.com/docs";
+    form.method = "post";
+    form.target = "_blank";
+    form.rel = "noopener noreferrer";
+
+    const snippet = document.createElement("input");
+    snippet.type = "hidden";
+    snippet.name = "encoded_snip";
+    snippet.value = encodeURIComponent(buildArchivedTex());
+
+    const engine = document.createElement("input");
+    engine.type = "hidden";
+    engine.name = "engine";
+    engine.value = "pdflatex";
+
+    form.append(snippet, engine);
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+    setArchiveStatus("Opening lecture in Overleaf...");
+  }
+
   function groupedArchive() {
     const groups = new Map<string, Map<string, ArchiveLecture[]>>();
 
-    for (const lecture of archiveLectures) {
+    for (const lecture of filteredArchiveLectures()) {
       const courseName = lecture.course || "Unfiled";
       const dateName = lecture.lecture_date || "No date";
 
@@ -1191,9 +1379,13 @@ export default function Home() {
             role="tab"
             aria-selected={activeTab === "create"}
             className={activeTab === "create" ? "active" : ""}
-            onClick={() => setActiveTab("create")}
+            onClick={() => {
+              if (confirmArchiveNavigation()) {
+                setActiveTab("create");
+              }
+            }}
           >
-            Create
+            New Lecture
           </button>
           <button
             type="button"
@@ -1500,7 +1692,7 @@ export default function Home() {
               <button
                 className="secondary"
                 type="button"
-                onClick={loadArchive}
+                onClick={() => void loadArchive()}
                 disabled={isArchiveLoading}
               >
                 {isArchiveLoading ? "Loading..." : "Load saved lectures"}
@@ -1508,9 +1700,34 @@ export default function Home() {
               <span>{archiveStatus || "Load saved lectures to browse by course."}</span>
             </div>
 
+            <div className="archive-search-row">
+              <label className="field">
+                <span>Search archive</span>
+                <input
+                  value={archiveSearch}
+                  onChange={(event) => setArchiveSearch(event.target.value)}
+                  placeholder="Course, title, date, formula, keyword..."
+                />
+              </label>
+              <div className="course-chips" aria-label="Course filters">
+                {["All", ...archiveCourses()].map((courseName) => (
+                  <button
+                    type="button"
+                    key={courseName}
+                    className={
+                      archiveCourseFilter === courseName ? "active" : ""
+                    }
+                    onClick={() => setArchiveCourseFilter(courseName)}
+                  >
+                    {courseName}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="archive-grid">
               <aside className="archive-tree" aria-label="Saved lecture tree">
-                {archiveLectures.length ? (
+                {filteredArchiveLectures().length ? (
                   groupedArchive().map(([courseName, dateGroups]) => (
                     <details key={courseName} open>
                       <summary>{courseName}</summary>
@@ -1528,9 +1745,7 @@ export default function Home() {
                                       ? "active"
                                       : ""
                                   }
-                                  onClick={() =>
-                                    setSelectedArchiveLecture(lecture)
-                                  }
+                                  onClick={() => selectArchivedLecture(lecture)}
                                 >
                                   {archiveTitle(lecture)}
                                 </button>
@@ -1542,7 +1757,11 @@ export default function Home() {
                     </details>
                   ))
                 ) : (
-                  <p className="empty-archive">No saved lectures loaded.</p>
+                  <p className="empty-archive">
+                    {archiveLectures.length
+                      ? "No lectures match the current search or course filter."
+                      : "No saved lectures yet. Create a lecture from audio, video, or board photos, then return here."}
+                  </p>
                 )}
               </aside>
 
@@ -1590,6 +1809,10 @@ export default function Home() {
                         </button>
                       </div>
                     </div>
+
+                    {archiveHasUnsavedChanges() ? (
+                      <p className="unsaved-banner">Unsaved changes</p>
+                    ) : null}
 
                     <div className="archive-edit-grid">
                       <label className="field">
@@ -1652,22 +1875,36 @@ export default function Home() {
                       <div className="archive-images">
                         {selectedArchiveLecture.assetUrls.map((asset, index) =>
                           asset.url ? (
-                            <a
-                              href={asset.url}
-                              target="_blank"
-                              rel="noreferrer"
+                            <button
+                              type="button"
                               key={asset.path}
+                              onClick={() => setLightboxAsset(asset)}
                             >
                               <img
                                 src={asset.url}
                                 alt={`Board photo ${index + 1}`}
                               />
                               <span>Fig. {index + 1}</span>
-                            </a>
+                            </button>
                           ) : null
                         )}
                       </div>
                     ) : null}
+
+                    <div className="archive-export-actions">
+                      <button type="button" onClick={copyArchivedLecture}>
+                        Copy
+                      </button>
+                      <button type="button" onClick={downloadArchivedText}>
+                        .txt
+                      </button>
+                      <button type="button" onClick={downloadArchivedTex}>
+                        .tex
+                      </button>
+                      <button type="button" onClick={openArchivedInOverleaf}>
+                        Overleaf
+                      </button>
+                    </div>
 
                     <div className="archive-view-toggle">
                       <button
@@ -1706,13 +1943,31 @@ export default function Home() {
                   </>
                 ) : (
                   <p className="empty-archive">
-                    Select a saved lecture to view rendered notes.
+                    Select a saved lecture to view rendered notes, edit metadata,
+                    export LaTeX, or manage the file.
                   </p>
                 )}
               </section>
             </div>
           </section>
         )}
+        {lightboxAsset?.url ? (
+          <div
+            className="image-lightbox"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Board photo preview"
+            onClick={() => setLightboxAsset(null)}
+          >
+            <div onClick={(event) => event.stopPropagation()}>
+              <button type="button" onClick={() => setLightboxAsset(null)}>
+                Close
+              </button>
+              <img src={lightboxAsset.url} alt={lightboxAsset.name} />
+              <p>{lightboxAsset.name}</p>
+            </div>
+          </div>
+        ) : null}
       </section>
     </main>
   );
