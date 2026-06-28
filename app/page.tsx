@@ -615,6 +615,93 @@ ${body}
 `;
 }
 
+function buildTexStudyPacket(lectures: ArchiveLecture[]) {
+  const courses = Array.from(
+    new Set(lectures.map((lecture) => lecture.course || "Unfiled"))
+  );
+  const packetTitle =
+    courses.length === 1
+      ? `${courses[0]} Study Packet`
+      : "LectureForge Study Packet";
+  const dateRange = formatLectureDateRange(lectures);
+  const body = lectures
+    .map((lecture) => {
+      const metadata = [
+        lecture.course ? `Course: ${lecture.course}` : "",
+        lecture.lecture_date ? `Date: ${lecture.lecture_date}` : "",
+        lecture.source_file ? `Source: ${lecture.source_file}` : "",
+        `Mode: ${lecture.transcript_mode}`
+      ].filter(Boolean);
+
+      return `\\section{${escapeLatexText(archiveLectureTitle(lecture))}}
+${metadata.map((row) => `\\textbf{${escapeLatexText(row)}}\\\\`).join("\n")}
+
+${transcriptToLatexBody(lecture.transcript || "No transcript saved.")}`;
+    })
+    .join("\n\n\\newpage\n\n");
+
+  return `\\documentclass[11pt]{article}
+\\usepackage[T1]{fontenc}
+\\usepackage[utf8]{inputenc}
+\\usepackage{amsmath,amssymb}
+\\usepackage[margin=1in]{geometry}
+\\usepackage{microtype}
+\\setlength{\\parindent}{0pt}
+\\setlength{\\parskip}{0.8em}
+
+\\title{${escapeLatexText(packetTitle)}}
+${courses.length === 1 ? `\\author{${escapeLatexText(courses[0])}}\n` : ""}\\date{${dateRange ? escapeLatexText(dateRange) : "\\today"}}
+
+\\begin{document}
+\\maketitle
+\\tableofcontents
+\\newpage
+
+${body}
+
+\\end{document}
+`;
+}
+
+function archiveLectureTitle(lecture: ArchiveLecture) {
+  return (
+    lecture.lecture_title ||
+    lecture.course ||
+    lecture.source_file ||
+    "Untitled lecture"
+  );
+}
+
+function formatLectureDateRange(lectures: ArchiveLecture[]) {
+  const dates = Array.from(
+    new Set(lectures.map((lecture) => lecture.lecture_date).filter(Boolean))
+  ).sort();
+
+  if (dates.length === 0) {
+    return "";
+  }
+
+  if (dates.length === 1) {
+    return dates[0];
+  }
+
+  return `${dates[0]} to ${dates[dates.length - 1]}`;
+}
+
+function sortLecturesForPacket(lectures: ArchiveLecture[]) {
+  return [...lectures].sort((first, second) => {
+    const firstDate = first.lecture_date || first.created_at || "";
+    const secondDate = second.lecture_date || second.created_at || "";
+    const byDate = firstDate.localeCompare(secondDate);
+
+    if (byDate !== 0) {
+      return byDate;
+    }
+
+    return archiveLectureTitle(first).localeCompare(archiveLectureTitle(second));
+  });
+}
+
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const boardPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -651,6 +738,7 @@ export default function Home() {
   );
   const [archiveSearch, setArchiveSearch] = useState("");
   const [archiveCourseFilter, setArchiveCourseFilter] = useState("All");
+  const [selectedArchiveIds, setSelectedArchiveIds] = useState<string[]>([]);
   const [lightboxAsset, setLightboxAsset] = useState<ArchiveAsset | null>(null);
   const [autoLoadedArchive, setAutoLoadedArchive] = useState(false);
   const [isArchiveSaving, setIsArchiveSaving] = useState(false);
@@ -1099,12 +1187,7 @@ export default function Home() {
   }
 
   function archiveTitle(lecture: ArchiveLecture) {
-    return (
-      lecture.lecture_title ||
-      lecture.course ||
-      lecture.source_file ||
-      "Untitled lecture"
-    );
+    return archiveLectureTitle(lecture);
   }
 
   function archiveCourses() {
@@ -1135,6 +1218,210 @@ export default function Home() {
 
       return matchesCourse && (!query || searchable.includes(query));
     });
+  }
+
+  function packetLectures() {
+    const selected = archiveLectures
+      .filter((lecture) => selectedArchiveIds.includes(lecture.id))
+      .map((lecture) =>
+        selectedArchiveLecture?.id === lecture.id
+          ? {
+              ...lecture,
+              course: archiveEdit.course,
+              lecture_title: archiveEdit.lecture_title,
+              lecture_date: archiveEdit.lecture_date,
+              transcript_mode: archiveEdit.transcript_mode,
+              transcript: archiveEdit.transcript
+            }
+          : lecture
+      );
+
+    return sortLecturesForPacket(selected);
+  }
+
+  function togglePacketLecture(lectureId: string) {
+    setSelectedArchiveIds((current) =>
+      current.includes(lectureId)
+        ? current.filter((id) => id !== lectureId)
+        : [...current, lectureId]
+    );
+  }
+
+  function selectVisibleLectures() {
+    const visibleIds = filteredArchiveLectures().map((lecture) => lecture.id);
+
+    setSelectedArchiveIds((current) =>
+      Array.from(new Set([...current, ...visibleIds]))
+    );
+  }
+
+  function clearSelectedLectures() {
+    setSelectedArchiveIds([]);
+  }
+
+  function buildPacketMarkdown(lectures = packetLectures()) {
+    const courses = Array.from(
+      new Set(lectures.map((lecture) => lecture.course || "Unfiled"))
+    );
+    const packetTitle =
+      courses.length === 1
+        ? `${courses[0]} Study Packet`
+        : "LectureForge Study Packet";
+    const dateRange = formatLectureDateRange(lectures);
+    const lectureList = lectures
+      .map((lecture, index) => {
+        const date = lecture.lecture_date ? ` (${lecture.lecture_date})` : "";
+        return `${index + 1}. ${archiveTitle(lecture)}${date}`;
+      })
+      .join("\n");
+    const sections = lectures
+      .map((lecture, index) => {
+        const metadata = [
+          `Course: ${lecture.course || "Unfiled"}`,
+          `Lecture Title: ${archiveTitle(lecture)}`,
+          `Lecture Date: ${lecture.lecture_date || "No date"}`,
+          `Source File: ${lecture.source_file || "Not specified"}`,
+          `Board Photos: ${lecture.board_photo_count || 0}`,
+          `Transcript Mode: ${lecture.transcript_mode}`
+        ].join("\n");
+
+        return `## ${index + 1}. ${archiveTitle(lecture)}
+
+${metadata}
+
+---
+
+${lecture.transcript || "No transcript saved."}`;
+      })
+      .join("\n\n---\n\n");
+
+    return `# ${packetTitle}
+
+${dateRange ? `Date Range: ${dateRange}\n` : ""}Lectures: ${lectures.length}
+
+## Included Lectures
+
+${lectureList}
+
+---
+
+${sections}
+`;
+  }
+
+  function packetDownloadName(extension: "txt" | "tex") {
+    const lectures = packetLectures();
+    const courses = Array.from(
+      new Set(lectures.map((lecture) => lecture.course || "lectureforge"))
+    );
+    const base =
+      courses.length === 1 ? `${courses[0]} study packet` : "lectureforge study packet";
+    const safeBase =
+      base
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "lectureforge-study-packet";
+
+    return `${safeBase}.${extension}`;
+  }
+
+  function selectedPacketHasLatexWarning() {
+    return packetLectures().find((lecture) =>
+      validateLatexDelimiters(lecture.transcript || "")
+    );
+  }
+
+  async function copyPacket() {
+    const lectures = packetLectures();
+
+    if (!lectures.length) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(buildPacketMarkdown(lectures));
+    setArchiveStatus(`${lectures.length} lecture study packet copied.`);
+  }
+
+  function downloadPacketText() {
+    const lectures = packetLectures();
+
+    if (!lectures.length) {
+      return;
+    }
+
+    const blob = new Blob([buildPacketMarkdown(lectures)], {
+      type: "text/plain;charset=utf-8"
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = packetDownloadName("txt");
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setArchiveStatus(`${lectures.length} lecture study packet downloaded.`);
+  }
+
+  function downloadPacketTex() {
+    const lectures = packetLectures();
+
+    if (!lectures.length) {
+      return;
+    }
+
+    if (selectedPacketHasLatexWarning()) {
+      setArchiveStatus("One selected lecture has unmatched LaTeX delimiters.");
+      return;
+    }
+
+    const blob = new Blob([buildTexStudyPacket(lectures)], {
+      type: "application/x-tex;charset=utf-8"
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = packetDownloadName("tex");
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setArchiveStatus(`${lectures.length} lecture .tex packet downloaded.`);
+  }
+
+  function openPacketInOverleaf() {
+    const lectures = packetLectures();
+
+    if (!lectures.length) {
+      return;
+    }
+
+    if (selectedPacketHasLatexWarning()) {
+      setArchiveStatus("One selected lecture has unmatched LaTeX delimiters.");
+      return;
+    }
+
+    const form = document.createElement("form");
+    form.action = "https://www.overleaf.com/docs";
+    form.method = "post";
+    form.target = "_blank";
+    form.rel = "noopener noreferrer";
+
+    const snippet = document.createElement("input");
+    snippet.type = "hidden";
+    snippet.name = "encoded_snip";
+    snippet.value = encodeURIComponent(buildTexStudyPacket(lectures));
+
+    const engine = document.createElement("input");
+    engine.type = "hidden";
+    engine.name = "engine";
+    engine.value = "pdflatex";
+
+    form.append(snippet, engine);
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+    setArchiveStatus("Opening study packet in Overleaf...");
   }
 
   function updateArchiveLectureInState(updated: ArchiveLecture) {
@@ -1218,6 +1505,9 @@ export default function Home() {
         setSelectedArchiveLecture(remaining[0] || null);
         return remaining;
       });
+      setSelectedArchiveIds((current) =>
+        current.filter((id) => id !== selectedArchiveLecture.id)
+      );
       setArchiveStatus("Lecture deleted.");
     } catch (error) {
       const message =
@@ -1723,7 +2013,54 @@ export default function Home() {
                   </button>
                 ))}
               </div>
+              <div className="archive-select-tools">
+                <button
+                  className="secondary"
+                  type="button"
+                  onClick={selectVisibleLectures}
+                  disabled={!filteredArchiveLectures().length}
+                >
+                  Select visible
+                </button>
+                <button
+                  className="secondary"
+                  type="button"
+                  onClick={clearSelectedLectures}
+                  disabled={!selectedArchiveIds.length}
+                >
+                  Clear selected
+                </button>
+              </div>
             </div>
+
+            {selectedArchiveIds.length ? (
+              <div className="packet-toolbar" aria-label="Study packet export">
+                <div>
+                  <strong>
+                    {selectedArchiveIds.length} lecture
+                    {selectedArchiveIds.length === 1 ? "" : "s"} selected
+                  </strong>
+                  <span>
+                    Export one combined packet, then use Overleaf to download
+                    the PDF.
+                  </span>
+                </div>
+                <div className="packet-actions">
+                  <button type="button" onClick={copyPacket}>
+                    Copy packet
+                  </button>
+                  <button type="button" onClick={downloadPacketText}>
+                    .txt packet
+                  </button>
+                  <button type="button" onClick={downloadPacketTex}>
+                    .tex packet
+                  </button>
+                  <button type="button" onClick={openPacketInOverleaf}>
+                    Overleaf packet
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             <div className="archive-grid">
               <aside className="archive-tree" aria-label="Saved lecture tree">
@@ -1737,18 +2074,40 @@ export default function Home() {
                             <summary>{dateName}</summary>
                             <div className="archive-tree-items">
                               {lectures.map((lecture) => (
-                                <button
-                                  type="button"
+                                <div
                                   key={lecture.id}
-                                  className={
-                                    selectedArchiveLecture?.id === lecture.id
-                                      ? "active"
-                                      : ""
-                                  }
-                                  onClick={() => selectArchivedLecture(lecture)}
+                                  className="archive-tree-row"
                                 >
-                                  {archiveTitle(lecture)}
-                                </button>
+                                  <label
+                                    className="archive-select"
+                                    aria-label={`Select ${archiveTitle(
+                                      lecture
+                                    )} for packet export`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedArchiveIds.includes(
+                                        lecture.id
+                                      )}
+                                      onChange={() =>
+                                        togglePacketLecture(lecture.id)
+                                      }
+                                    />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    className={
+                                      selectedArchiveLecture?.id === lecture.id
+                                        ? "active"
+                                        : ""
+                                    }
+                                    onClick={() =>
+                                      selectArchivedLecture(lecture)
+                                    }
+                                  >
+                                    {archiveTitle(lecture)}
+                                  </button>
+                                </div>
                               ))}
                             </div>
                           </details>
