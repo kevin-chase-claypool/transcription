@@ -74,6 +74,12 @@ type LectureMutationResponse = {
   error?: string;
 };
 
+type StudyGuideResponse = {
+  text?: string;
+  usage?: FormattingUsage | null;
+  error?: string;
+};
+
 type AppTab = "create" | "archive";
 
 const ACCEPTED_FORMATS = ".mp3,.wav,.m4a,.mp4,.mpeg,.webm,.ogg,audio/*,video/*";
@@ -741,6 +747,8 @@ export default function Home() {
   const [archiveSearch, setArchiveSearch] = useState("");
   const [archiveCourseFilter, setArchiveCourseFilter] = useState("All");
   const [selectedArchiveIds, setSelectedArchiveIds] = useState<string[]>([]);
+  const [packetContext, setPacketContext] = useState("");
+  const [isPacketGenerating, setIsPacketGenerating] = useState(false);
   const [lightboxAsset, setLightboxAsset] = useState<ArchiveAsset | null>(null);
   const [autoLoadedArchive, setAutoLoadedArchive] = useState(false);
   const [isArchiveSaving, setIsArchiveSaving] = useState(false);
@@ -1338,6 +1346,18 @@ ${sections}
     return `${safeBase}.${extension}`;
   }
 
+  function buildGeneratedStudyGuideTex(studyGuide: string, lectures = packetLectures()) {
+    const courses = Array.from(
+      new Set(lectures.map((lecture) => lecture.course || "LectureForge"))
+    );
+
+    return buildTexDocument(studyGuide, {
+      course: courses.length === 1 ? courses[0] : courses.join(", "),
+      lectureTitle: "AI Study Guide",
+      lectureDate: formatLectureDateRange(lectures)
+    });
+  }
+
   function selectedPacketHasLatexWarning() {
     return packetLectures().find((lecture) =>
       validateLatexDelimiters(lecture.transcript || "")
@@ -1402,6 +1422,81 @@ ${sections}
     setArchiveStatus(`${lectures.length} lecture .tex packet downloaded.`);
   }
 
+  async function generateAiStudyPacket() {
+    const lectures = packetLectures();
+
+    if (!lectures.length) {
+      return "";
+    }
+
+    setIsPacketGenerating(true);
+    setArchiveStatus("Building AI study guide from selected lectures...");
+
+    try {
+      const response = await fetch("/api/study-guide", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-app-password": password
+        },
+        body: JSON.stringify({
+          context: packetContext,
+          lectures: lectures.map((lecture) => ({
+            course: lecture.course,
+            lectureTitle: archiveTitle(lecture),
+            lectureDate: lecture.lecture_date,
+            transcriptMode: lecture.transcript_mode,
+            transcript: lecture.transcript
+          }))
+        })
+      });
+      const data = (await response.json()) as StudyGuideResponse;
+
+      if (!response.ok || !data.text) {
+        throw new Error(data.error || "Could not build AI study guide.");
+      }
+
+      const usage = data.usage ? ` ${formatTokenUsage(data.usage)}.` : "";
+      setArchiveStatus(`AI study guide ready.${usage}`);
+      return data.text;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not build AI study guide.";
+      setArchiveStatus(message);
+      return "";
+    } finally {
+      setIsPacketGenerating(false);
+    }
+  }
+
+  async function downloadAiPacketTex() {
+    const lectures = packetLectures();
+    const studyGuide = await generateAiStudyPacket();
+
+    if (!studyGuide) {
+      return;
+    }
+
+    const warning = validateLatexDelimiters(studyGuide);
+    if (warning) {
+      setArchiveStatus(`${warning} Review the generated guide before exporting.`);
+      return;
+    }
+
+    const blob = new Blob([buildGeneratedStudyGuideTex(studyGuide, lectures)], {
+      type: "application/x-tex;charset=utf-8"
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "ai-study-guide.tex";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setArchiveStatus("AI study guide .tex downloaded.");
+  }
+
   function openPacketInOverleaf() {
     const lectures = packetLectures();
 
@@ -1435,6 +1530,45 @@ ${sections}
     form.submit();
     form.remove();
     setArchiveStatus("Opening study packet in Overleaf...");
+  }
+
+  async function openAiPacketInOverleaf() {
+    const lectures = packetLectures();
+    const studyGuide = await generateAiStudyPacket();
+
+    if (!studyGuide) {
+      return;
+    }
+
+    const warning = validateLatexDelimiters(studyGuide);
+    if (warning) {
+      setArchiveStatus(`${warning} Review the generated guide before opening Overleaf.`);
+      return;
+    }
+
+    const form = document.createElement("form");
+    form.action = "https://www.overleaf.com/docs";
+    form.method = "post";
+    form.target = "_blank";
+    form.rel = "noopener noreferrer";
+
+    const snippet = document.createElement("input");
+    snippet.type = "hidden";
+    snippet.name = "encoded_snip";
+    snippet.value = encodeURIComponent(
+      buildGeneratedStudyGuideTex(studyGuide, lectures)
+    );
+
+    const engine = document.createElement("input");
+    engine.type = "hidden";
+    engine.name = "engine";
+    engine.value = "pdflatex";
+
+    form.append(snippet, engine);
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+    setArchiveStatus("Opening AI study guide in Overleaf...");
   }
 
   function updateArchiveLectureInState(updated: ArchiveLecture) {
@@ -2064,10 +2198,20 @@ ${sections}
                     {selectedArchiveIds.length === 1 ? "" : "s"} selected
                   </strong>
                   <span>
-                    Export one combined packet, then use Overleaf to download
-                    the PDF.
+                    Export directly, or add AI context and generate a focused
+                    Overleaf study guide.
                   </span>
                 </div>
+                <label className="field packet-context">
+                  <span>AI study guide context</span>
+                  <textarea
+                    value={packetContext}
+                    onChange={(event) => setPacketContext(event.target.value)}
+                    placeholder="Example: Exam 2 covers integration by parts, trig substitution, and improper integrals. Emphasize formulas, common mistakes, and practice checklist."
+                    rows={3}
+                    disabled={isPacketGenerating}
+                  />
+                </label>
                 <div className="packet-actions">
                   <button type="button" onClick={copyPacket}>
                     Copy packet
@@ -2080,6 +2224,20 @@ ${sections}
                   </button>
                   <button type="button" onClick={openPacketInOverleaf}>
                     Overleaf packet
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void downloadAiPacketTex()}
+                    disabled={isPacketGenerating}
+                  >
+                    {isPacketGenerating ? "Building..." : "AI .tex"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void openAiPacketInOverleaf()}
+                    disabled={isPacketGenerating}
+                  >
+                    {isPacketGenerating ? "Building..." : "AI Overleaf"}
                   </button>
                 </div>
               </div>
