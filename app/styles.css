@@ -9,6 +9,47 @@
   --primary-dark: #084f98;
   --disabled: #9aa6b7;
   --shadow: 0 18px 55px rgba(23, 32, 51, 0.13);
+  --field: #fbfcfe;
+  --panel: #f7f9fc;
+  --button: #e8eef7;
+  --button-hover: #dce7f5;
+  --progress: #edf2f8;
+  --packet: #f0f7ff;
+  --packet-border: #b8d6f5;
+  --warning-bg: #fff9df;
+  --warning-border: #e5c25d;
+  --warning-text: #6b5200;
+  --danger-bg: #fff1f0;
+  --danger-border: #f1b2ac;
+  --danger-text: #9f1f17;
+  --focus: rgba(11, 107, 203, 0.16);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #0d1117;
+  --card: #161b22;
+  --text: #e6edf3;
+  --muted: #9da7b3;
+  --border: #30363d;
+  --primary: #2f81f7;
+  --primary-dark: #1f6feb;
+  --disabled: #6e7681;
+  --shadow: 0 18px 55px rgba(0, 0, 0, 0.45);
+  --field: #0d1117;
+  --panel: #111820;
+  --button: #21262d;
+  --button-hover: #30363d;
+  --progress: #21262d;
+  --packet: #0f2236;
+  --packet-border: #1f6feb;
+  --warning-bg: #2d2305;
+  --warning-border: #8f6d00;
+  --warning-text: #f2cc60;
+  --danger-bg: #2d1110;
+  --danger-border: #8e2c27;
+  --danger-text: #ffb4ad;
+  --focus: rgba(47, 129, 247, 0.28);
 }
 
 * {
@@ -70,6 +111,23 @@ textarea {
   align-items: center;
   gap: 10px;
   margin-bottom: 4px;
+}
+
+.theme-toggle {
+  margin-left: auto;
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 12px;
+  background: var(--button);
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  background: var(--button-hover);
 }
 
 .title-row img {
@@ -927,6 +985,83 @@ textarea:disabled {
   color: var(--muted);
   font-size: 0.86rem;
   font-weight: 700;
+}
+
+:root[data-theme="dark"] .top-tabs button:not(.active),
+:root[data-theme="dark"] .field input,
+:root[data-theme="dark"] .field select,
+:root[data-theme="dark"] .field textarea,
+:root[data-theme="dark"] .mode-field label:not(:has(input:checked)),
+:root[data-theme="dark"] .course-chips button:not(.active),
+:root[data-theme="dark"] .archive-select,
+:root[data-theme="dark"] .archive-tree-items button,
+:root[data-theme="dark"] .archive-source textarea,
+:root[data-theme="dark"] .raw-transcript textarea {
+  background: var(--field);
+}
+
+:root[data-theme="dark"] .advanced,
+:root[data-theme="dark"] .usage-details,
+:root[data-theme="dark"] .archive-tree,
+:root[data-theme="dark"] .archive-images img,
+:root[data-theme="dark"] .archive-view-toggle,
+:root[data-theme="dark"] .board-panel,
+:root[data-theme="dark"] .image-lightbox img {
+  background: var(--panel);
+}
+
+:root[data-theme="dark"] .packet-toolbar,
+:root[data-theme="dark"] .archive-tree-items button:hover,
+:root[data-theme="dark"] .archive-tree-items .active {
+  background: var(--packet);
+}
+
+:root[data-theme="dark"] .packet-toolbar {
+  border-color: var(--packet-border);
+}
+
+:root[data-theme="dark"] .packet-actions button,
+:root[data-theme="dark"] .archive-export-actions button,
+:root[data-theme="dark"] .secondary,
+:root[data-theme="dark"] .actions button,
+:root[data-theme="dark"] .image-lightbox button {
+  background: var(--button);
+}
+
+:root[data-theme="dark"] .packet-actions button:hover,
+:root[data-theme="dark"] .archive-export-actions button:hover,
+:root[data-theme="dark"] .actions button:hover:not(:disabled),
+:root[data-theme="dark"] .secondary:hover:not(:disabled),
+:root[data-theme="dark"] .image-lightbox button:hover {
+  background: var(--button-hover);
+}
+
+:root[data-theme="dark"] .archive-viewer,
+:root[data-theme="dark"] .archive-export-actions,
+:root[data-theme="dark"] .image-lightbox > div {
+  background: var(--card);
+}
+
+:root[data-theme="dark"] .unsaved-banner {
+  border-color: var(--warning-border);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+:root[data-theme="dark"] .danger {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+:root[data-theme="dark"] .stage-bar span {
+  background: var(--progress);
+}
+
+:root[data-theme="dark"] .field input:focus,
+:root[data-theme="dark"] .field select:focus,
+:root[data-theme="dark"] .field textarea:focus {
+  outline-color: var(--focus);
 }
 
 @media (max-width: 520px) {

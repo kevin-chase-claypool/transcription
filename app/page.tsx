@@ -82,8 +82,10 @@ const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const BOARD_IMAGE_MAX_DIMENSION = 1600;
 const BOARD_IMAGE_QUALITY = 0.72;
 const PASSWORD_STORAGE_KEY = "lectureforge-password";
+const THEME_STORAGE_KEY = "lectureforge-theme";
 
 type TranscriptMode = "raw" | "clean" | "latex";
+type ThemeMode = "light" | "dark";
 
 function formatUsage(usage: TranscriptionUsage | null) {
   if (!usage) {
@@ -747,12 +749,18 @@ export default function Home() {
   const [status, setStatus] = useState("");
   const [stage, setStage] = useState("Ready");
   const [isLoading, setIsLoading] = useState(false);
+  const [theme, setTheme] = useState<ThemeMode>("light");
 
   useEffect(() => {
     const savedPassword = window.localStorage.getItem(PASSWORD_STORAGE_KEY);
     if (savedPassword) {
       setPassword(savedPassword);
       setRememberPassword(true);
+    }
+
+    const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (savedTheme === "dark" || savedTheme === "light") {
+      setTheme(savedTheme);
     }
   }, []);
 
@@ -763,6 +771,11 @@ export default function Home() {
       window.localStorage.removeItem(PASSWORD_STORAGE_KEY);
     }
   }, [password, rememberPassword]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
 
   useEffect(() => {
     if (password && !autoLoadedArchive) {
@@ -1656,6 +1669,16 @@ ${sections}
           <div className="title-row">
             <img src="/icon.svg" alt="" aria-hidden="true" />
             <h1 id="page-title">LectureForge</h1>
+            <button
+              className="theme-toggle"
+              type="button"
+              onClick={() =>
+                setTheme((current) => (current === "dark" ? "light" : "dark"))
+              }
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            >
+              {theme === "dark" ? "Light" : "Dark"}
+            </button>
           </div>
           <p>
             Upload audio/video, board photos, or both, then edit the generated
